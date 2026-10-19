@@ -1,27 +1,16 @@
-# 01. 실습의 바닥 다지기 — Linux·Python·PyTorch와 GPU
+# 01. PyTorch 실행환경과 GPU 점검
 
 [← 이전: 전체 로드맵](00-roadmap.md) · [목차](README.md) · [다음: 첫 텍스트 분류기 →](02-first-classifier.md)
 
-이 장에서는 Linux 터미널의 기본 명령을 익히고, 실습용 Python 환경을 분리한 뒤 PyTorch로 GPU 계산을 확인합니다. 모델 학습에 앞서 **명령을 실행하는 컴퓨터, 선택된 Python, 계산 장치**를 구분하는 것이 목표입니다.
+이 장에서는 실습용 Python 가상환경을 구성하고, PyTorch에서 GPU 계산과 NumPy 변환이 정상 동작하는지 확인합니다.
 
-> **환경 예시:** OCI A10 VM, Ubuntu 24.04 계열, Python 3.12 환경을 기준으로 설명합니다. 아래 버전과 출력은 실행 예시이며 최신 권장 버전 목록이 아닙니다. OS·패키지·드라이버·GPU에 따라 설치 방법과 출력이 달라집니다. 이미 동작하는 환경에서는 설치나 드라이버 변경을 반복하지 않습니다.
+> **실습 환경:** OCI A10 GPU VM · Ubuntu
 
-## 1. PC·VM·터미널 구분하기
+아래 명령은 해당 VM의 터미널에서 실행합니다. 설치 명령과 버전 출력은 환경에 따라 달라질 수 있으며, 이미 동작하는 드라이버나 가상환경은 다시 설치하지 않습니다.
 
-| 이름 | 역할 |
-|---|---|
-| 로컬 PC | SSH 접속을 시작하는 컴퓨터 |
-| 원격 VM | Linux 명령과 PyTorch 코드를 실행하는 컴퓨터 |
-| SSH 터미널의 `$` 프롬프트 | Linux 명령 입력 위치. 프롬프트 자체는 복사하지 않음 |
-| Python의 `>>>` 프롬프트 | Python 코드 입력 위치. Bash 명령을 넣는 자리가 아님 |
-| `(.venv)` | 현재 터미널에서 프로젝트 가상환경이 활성화됐다는 표시 |
-| `~/llm-lab/source` | VM 안에 만들 실습 폴더. 저장소의 `source/`와 별도 위치 |
+## 1. 운영체제·GPU·드라이버 확인하기
 
-`bash` 블록은 **SSH로 접속한 Linux VM의 Bash 터미널**에서 실행합니다. Windows PowerShell에 그대로 붙여 넣는 명령이 아닙니다. VM 생성과 SSH 키 설정은 이 장의 범위 밖이며, 접속 가능한 환경을 준비한 뒤 진행합니다.
-
-## 2. 운영체제·GPU·드라이버 확인하기
-
-### 2.1 설치보다 조회가 먼저
+### 1.1 설치보다 조회가 먼저
 
 Ubuntu VM에서 다음 명령을 실행합니다.
 
@@ -51,7 +40,7 @@ Command 'nvidia-smi' not found, but can be installed with:
 
 **`nvidia-smi`가 없다고 GPU가 없는 것은 아닙니다.** PCI 조회에 A10이 보인다면 장치는 인식되고 있지만 관리 도구나 드라이버 구성을 따로 점검해야 합니다. 패키지 검색에 일치하는 줄이 없다면 설치 여부부터 확인합니다. 장치 존재, 드라이버 동작, Python에서의 GPU 사용은 각각 다른 검사입니다.
 
-### 2.2 드라이버가 필요한 경우
+### 1.2 드라이버가 필요한 경우
 
 > 아래 명령은 시스템을 변경하고 재부팅합니다. NVIDIA 드라이버가 필요한 Ubuntu 환경이며 해당 VM 이미지의 설치 정책과 호환성을 확인한 경우에만 사용합니다. 이미 `nvidia-smi`가 정상 동작하면 이 단계를 진행하지 않습니다. 작업 중인 프로세스를 정리하고 재접속 방법을 확보합니다.
 
@@ -100,107 +89,9 @@ No running processes found
 
 `CUDA Version: 13.2`는 드라이버가 지원하는 CUDA 버전 표시입니다. **CUDA Toolkit이나 PyTorch 설치를 확인한 결과가 아닙니다.** GPU 이름·메모리·프로세스 표시는 환경과 사용 상태에 따라 달라집니다.
 
-## 3. Linux에서 위치와 파일 다루기
+## 2. 실습 전용 Python 가상환경 만들기
 
-### 3.1 계정·현재 위치·목록
-
-```bash
-whoami
-pwd
-ls -la
-```
-
-`whoami`는 접속 계정 이름, `pwd`는 현재 작업 폴더, `ls -la`는 숨김 항목을 포함한 상세 목록을 보여줍니다.
-
-- `~`: 현재 계정의 홈 폴더입니다.
-- `.`와 `..`: 현재 폴더와 상위 폴더입니다.
-- `-l`: 상세 정보, `-a`: 숨김 항목까지 표시하는 옵션입니다.
-- 이름 앞의 `.`: 숨김 항목입니다. `.ssh`, `.bashrc`, `.profile` 등이 해당합니다.
-- 상세 목록 첫 글자의 `d`: 디렉터리, `-`: 일반 파일입니다.
-
-SSH 개인키·접속 설정·명령 기록에는 민감한 정보가 있을 수 있습니다. 내용을 학습 자료나 공개 저장소에 복사하지 않습니다.
-
-### 3.2 폴더 생성과 이동
-
-```bash
-mkdir -p ~/llm-lab/source
-cd ~/llm-lab/source
-pwd
-touch linux-practice.txt
-ls -l
-cat linux-practice.txt
-```
-
-| 명령 | 의미 |
-|---|---|
-| `mkdir -p …` | 중간 폴더까지 생성. 이미 있으면 그대로 사용 |
-| `cd …` | 현재 작업 위치 변경 |
-| `pwd` | 현재 위치 출력 |
-| `touch …` | 파일이 없으면 빈 파일 생성. 기존 파일의 내용은 지우지 않음 |
-| `ls -l` | 파일 크기 등 상세 정보 확인 |
-| `cat …` | 파일 내용 읽기 |
-
-`mkdir`는 폴더를 만들 뿐 현재 위치를 바꾸지 않습니다. 생성 뒤에도 `pwd`가 홈 폴더를 가리킨다면 `cd`를 실행했는지 확인합니다. 새 빈 파일은 크기가 0바이트이며, `cat`이 표시할 내용이 없는 것이 정상입니다. 기존 파일이 있다면 결과는 그 파일 내용에 따라 달라집니다.
-
-### 3.3 내용 쓰기와 추가하기
-
-다음 명령은 연습 파일에 내용을 기록합니다. **첫 줄은 기존 내용을 덮어씁니다.** 대상 파일을 확인한 뒤 실행합니다.
-
-```bash
-echo "Hello Linux" > linux-practice.txt
-cat linux-practice.txt
-echo "I am learning Linux for LLM practice." >> linux-practice.txt
-cat linux-practice.txt
-```
-
-`echo`는 문자열을 출력합니다. `>`는 출력을 파일에 덮어쓰고, `>>`는 파일 끝에 추가합니다. 마지막 `cat`의 **실행 예시**입니다.
-
-```text
-Hello Linux
-I am learning Linux for LLM practice.
-```
-
-## 4. Python과 Git 명령 확인하기
-
-```bash
-python3 --version
-git --version
-```
-
-**실행 예시:**
-
-```text
-Python 3.12.3
-git version 2.43.0
-```
-
-버전 출력은 실행 파일을 사용할 수 있다는 뜻입니다. 프로젝트 패키지가 설치되어 있다는 뜻이나 Git 저장소가 초기화됐다는 뜻은 아닙니다. 이 장에서는 Git 설치 여부만 확인하며, 저장소 생성·커밋·원격 게시 방법은 다루지 않습니다.
-
-### 변수와 출력 연습
-
-Bash에서 `python3`를 실행합니다. `>>>`가 나오면 다음 Python 코드를 한 줄씩 입력합니다. `>>>` 자체는 입력하지 않습니다.
-
-```python
-message = "Hello LLM"
-print(message)
-epochs = 3
-print(epochs)
-print(epochs + 1)
-exit()
-```
-
-- `message`, `epochs`: 값을 가리키는 변수 이름입니다.
-- `=`: 오른쪽 값을 왼쪽 변수에 대입합니다.
-- 따옴표 안의 글: 문자열입니다.
-- `print`: 값을 화면에 출력합니다.
-- `epochs`: 이후 전체 데이터를 몇 번 학습할지 나타내는 이름으로 사용합니다.
-- `exit()`: Python 대화형 환경을 종료하고 Bash로 돌아갑니다.
-
-출력에서 `Hello LLM`, `3`, `4`를 확인합니다. Bash의 폴더 이동 명령과 Python 코드는 서로 다른 입력 환경에서 실행합니다.
-
-## 5. 실습 전용 Python 가상환경 만들기
-
-### 5.1 어떤 Python에 PyTorch가 있는가?
+### 2.1 어떤 Python에 PyTorch가 있는가?
 
 ```bash
 python3 -c "import torch; print('PyTorch:', torch.__version__); print('GPU 사용 가능:', torch.cuda.is_available())"
@@ -214,9 +105,10 @@ ModuleNotFoundError: No module named 'torch'
 
 이는 **이 명령이 선택한 Python 환경에서** `torch`를 찾지 못했다는 뜻입니다. GPU 고장이나 모든 Python 환경의 상태를 뜻하지 않습니다. 시스템 Python에 패키지를 섞어 설치하기보다 프로젝트 전용 환경을 사용합니다.
 
-### 5.2 생성과 활성화
+### 2.2 생성과 활성화
 
 ```bash
+mkdir -p ~/llm-lab/source
 cd ~/llm-lab/source
 python3 -m venv .venv
 source .venv/bin/activate
@@ -250,9 +142,9 @@ python -m pip --version
 pip 24.0 from /home/<VM>/llm-lab/source/.venv/lib/python3.12/site-packages/pip (python 3.12)
 ```
 
-## 6. PyTorch로 GPU 계산 확인하기
+## 3. PyTorch로 GPU 계산 확인하기
 
-### 6.1 패키지 설치
+### 3.1 패키지 설치
 
 실행 위치는 `~/llm-lab/source`이며 `.venv`가 활성화되어 있어야 합니다. 다음은 **CUDA 12.8용 PyTorch 패키지 저장소를 사용하는 설치 예시**입니다. GPU·드라이버·Python과 호환되는 배포본인지 확인한 환경에 적용합니다.
 
@@ -262,7 +154,7 @@ python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
 
 버전 번호를 고정하지 않은 명령이므로 실행 시점에 따라 설치 버전이 달라질 수 있습니다. 아래 출력의 버전을 최신 권장 버전이나 항상 설치되는 버전으로 해석하지 않습니다.
 
-### 6.2 GPU 검사 전체 코드
+### 3.2 GPU 검사 전체 코드
 
 [소스 파일: gpu_check.py](source/01-foundations/gpu_check.py)
 
@@ -307,7 +199,7 @@ GPU 계산 결과: [2.0, 4.0, 6.0]
 
 NumPy가 없는 환경에서는 위 경고가 나타날 수 있습니다. 경고와 별개로 마지막 계산 결과까지 나오는지 확인합니다. 드라이버 표시의 CUDA 13.2와 PyTorch 배포본의 `cu128`은 같은 의미의 버전 표기가 아닙니다. 숫자의 일치 여부만 판단하지 말고 호환 조건과 실제 연산을 확인합니다.
 
-### 6.3 NumPy 설치와 배열 변환 검사
+### 3.3 NumPy 설치와 배열 변환 검사
 
 NumPy가 없다면 같은 가상환경에 설치합니다.
 
@@ -341,7 +233,7 @@ GPU 연산·NumPy 변환 성공: [2. 4. 6.]
 
 **이 계산에는 모델도, 가중치 수정도 없습니다.** 숫자 계산이 되는지 확인한 것이며, 모델 학습 성공을 뜻하지 않습니다.
 
-### 6.4 문제가 생기면 확인할 순서
+### 3.4 문제가 생기면 확인할 순서
 
 1. `ModuleNotFoundError`: 가상환경 활성화와 `python -m pip --version`의 경로를 확인합니다.
 2. `nvidia-smi` 실패: Python 설치보다 GPU 노출·드라이버·관리 도구 상태부터 확인합니다.
@@ -351,7 +243,7 @@ GPU 연산·NumPy 변환 성공: [2. 4. 6.]
 
 오류 메시지의 첫 원인을 읽고 해당 계층부터 점검합니다. 설치 명령을 전부 반복하는 것은 진단을 대신하지 못합니다.
 
-## 7. PyTorch·모델·CUDA의 역할
+## 4. PyTorch·모델·CUDA의 역할
 
 | 개념 | 설명 | 예 |
 |---|---|---|
@@ -369,7 +261,7 @@ GPU 연산·NumPy 변환 성공: [2. 4. 6.]
 
 작은 분류기로 원리를 배우는 데는 CPU도 사용할 수 있습니다. 지원되는 AMD GPU의 ROCm, Mac GPU의 MPS 같은 경로도 있지만 하드웨어·운영체제·패키지별 지원 조합은 따로 확인해야 합니다. 이 가이드는 NVIDIA CUDA 경로를 사용합니다. 다음 장의 GPU 필수 검사는 **이 가이드가 선택한 실행 조건**이지 모든 모델 학습의 필수조건은 아닙니다.
 
-## 8. 새 터미널에서 이어서 사용하기
+## 5. 새 터미널에서 이어서 사용하기
 
 기존 가상환경은 다시 만들지 않고 활성화합니다.
 
@@ -380,24 +272,19 @@ source .venv/bin/activate
 
 이 명령은 현재 터미널의 Python 선택을 바꿉니다. 새 접속이라는 이유만으로 패키지 설치·드라이버 설치·가상환경 생성을 처음부터 반복하지 않습니다.
 
-## 9. 완료 체크리스트와 복습 질문
+## 6. 완료 체크리스트와 복습 질문
 
-- [ ] 로컬 PC와 SSH로 접속한 VM을 구분한다.
-- [ ] `mkdir`, `cd`, `pwd`를 생성·이동·위치 확인으로 구분한다.
-- [ ] 빈 파일의 내용이 표시되지 않는 이유를 설명한다.
-- [ ] `>`의 덮어쓰기 위험과 `>>`의 추가 동작을 구분한다.
 - [ ] pip 경로가 프로젝트의 `.venv` 안인지 확인한다.
 - [ ] GPU 검사와 GPU→NumPy 변환 검사를 통과한다.
 - [ ] 드라이버 동작, PyTorch 설치, GPU 계산, 모델 학습을 서로 구분한다.
 
 **스스로 답해 보기**
 
-1. `mkdir`를 실행했는데 `pwd`가 바뀌지 않는 이유는 무엇인가?
-2. `python -m pip --version`의 경로에서 무엇을 확인해야 하는가?
-3. 가상환경 생성 실패 뒤에 활성화 오류가 따라오는 이유는 무엇인가?
-4. `CUDA Version: 13.2`가 PyTorch 설치 증거가 아닌 이유는 무엇인가?
-5. `nvidia-smi`가 정상인데 GPU 검사가 실패하면 무엇부터 확인해야 하는가?
-6. PyTorch·모델·GPU는 각각 어떤 역할인가?
-7. GPU 곱셈 검사에는 왜 학습이 없다고 말할 수 있는가?
+1. `python -m pip --version`의 경로에서 무엇을 확인해야 하는가?
+2. 가상환경 생성 실패 뒤에 활성화 오류가 따라오는 이유는 무엇인가?
+3. `CUDA Version: 13.2`가 PyTorch 설치 증거가 아닌 이유는 무엇인가?
+4. `nvidia-smi`가 정상인데 GPU 검사가 실패하면 무엇부터 확인해야 하는가?
+5. PyTorch·모델·GPU는 각각 어떤 역할인가?
+6. GPU 곱셈 검사에는 왜 학습이 없다고 말할 수 있는가?
 
 [← 이전: 전체 로드맵](00-roadmap.md) · [목차](README.md) · [다음: 첫 텍스트 분류기 →](02-first-classifier.md)
