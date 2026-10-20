@@ -24,6 +24,10 @@ for body in [b'[]', b'null', b'{}', b'bad json', b'\xff', b'{"prompt":"\\ud800"}
         raise AssertionError(f"invalid body accepted: {body[:80]!r}")
 print("PASS: request JSON/type/length/token-limit contract")
 
+measured = "--metrics" in sys.argv
+if measured:
+    assert 'parser.add_argument("--metrics"' in script.read_text(encoding="utf-8"), "metrics option missing"
+
 if "--integration" not in sys.argv:
     raise SystemExit(0)
 assert hasattr(api, "load_model"), "saved QLoRA loader is missing"
@@ -86,7 +90,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
     before_fixture = hashes(fixture)
     env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
     with (Path(temporary) / "server.stderr").open("w+", encoding="utf-8") as errors:
-        proc = subprocess.Popen([sys.executable, "-u", str(script), str(fixture), "--device", "cpu", "--port", "0"],
+        proc = subprocess.Popen([sys.executable, "-u", str(script), str(fixture), "--device", "cpu", "--port", "0"]
+                                + (["--metrics"] if measured else []),
                                 stdout=subprocess.PIPE, stderr=errors, text=True, encoding="utf-8", env=env)
         try:
             ready = queue.Queue()
@@ -122,6 +127,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
                             "input_tokens": ids.shape[1], "generated_tokens": generated.shape[1] - ids.shape[1]}
                 status, response = call("/generate", json.dumps({"prompt": prompt, "max_new_tokens": limit}).encode(),
                                         {"Content-Type": "application/json"})
+                if measured:
+                    metrics = response.pop("metrics")
+                    assert metrics["generation_seconds"] > 0 and metrics["cuda_memory"] is None, metrics
                 assert status == 200 and response == expected, response
                 print("HTTP 200 real NF4 untrained fixture:", json.dumps(response, ensure_ascii=False))
             for body, headers, expected_status in [
@@ -140,6 +148,26 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
             assert call("/not-found")[0] == 404
             assert call("/not-found", b'{}', {"Content-Type": "application/json"})[0] == 404
             assert call("/health")[0] == 200
+            if measured:
+                benchmark_path = script.with_name("02-benchmark.py")
+                benchmark_spec = importlib.util.spec_from_file_location("benchmark", benchmark_path)
+                assert benchmark_spec is not None and benchmark_spec.loader is not None
+                benchmark = importlib.util.module_from_spec(benchmark_spec)
+                benchmark_spec.loader.exec_module(benchmark)
+                output = Path(temporary) / "benchmark.json"
+                report = benchmark.run(int(url.rsplit(":", 1)[1]), 2, output)
+                assert report == json.loads(output.read_text(encoding="utf-8"))
+                assert report["summary"]["requests"] == 4 and len(report["rows"]) == 6
+                assert all(r["metrics"]["cuda_memory"] is None for r in report["rows"])
+                saved = output.read_bytes()
+                try:
+                    benchmark.run(int(url.rsplit(":", 1)[1]), 2, output)
+                except FileExistsError:
+                    pass
+                else:
+                    raise AssertionError("existing report overwritten")
+                assert output.read_bytes() == saved
+                print("PASS: real CPU measured HTTP, warmup excluded, report readback and overwrite refusal")
         finally:
             proc.terminate()
             proc.wait(timeout=30)

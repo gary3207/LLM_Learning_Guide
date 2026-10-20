@@ -1,6 +1,6 @@
 # 21 · 저장한 QLoRA를 HTTP API로 호출하기
 
-[← 이전: QLoRA](20-qlora.md) · [목차](README.md)
+[← 이전: QLoRA](20-qlora.md) · [목차](README.md) · [다음: 서빙 성능 측정 →](22-serving-benchmark.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -55,6 +55,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
 import traceback
+from time import perf_counter
 
 MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 REVISION = "12fd25f77366fa6b3b4b768ec3050bf629380bac"
@@ -168,10 +169,32 @@ class Handler(BaseHTTPRequestHandler):
             config = GenerationConfig(max_new_tokens=limit, do_sample=False, num_beams=1, use_cache=True,
                 repetition_penalty=1.0, bos_token_id=tokenizer.bos_token_id,
                 eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id)
+            measured = getattr(self.server, "metrics", False)
+            cuda = model.device.type == "cuda"
+            memory = None
+            metrics = None
+            if measured:
+                if cuda:
+                    torch.cuda.synchronize(model.device)
+                    torch.cuda.reset_peak_memory_stats(model.device)
+                    memory = {"allocated_before_bytes": torch.cuda.memory_allocated(model.device),
+                              "reserved_before_bytes": torch.cuda.memory_reserved(model.device)}
+            start = perf_counter() if measured else None
             with torch.inference_mode():
                 generated = model.generate(inputs, attention_mask=torch.ones_like(inputs), generation_config=config)
+            if measured:
+                assert start is not None
+                if cuda:
+                    torch.cuda.synchronize(model.device)
+                seconds = perf_counter() - start
+                if memory is not None:
+                    memory.update(peak_allocated_bytes=torch.cuda.max_memory_allocated(model.device),
+                                  peak_reserved_bytes=torch.cuda.max_memory_reserved(model.device))
+                metrics = {"generation_seconds": seconds, "cuda_memory": memory}
             result = {"text": tokenizer.decode(generated[0, inputs.shape[1]:], skip_special_tokens=True),
                       "input_tokens": inputs.shape[1], "generated_tokens": generated.shape[1] - inputs.shape[1]}
+            if metrics is not None:
+                result["metrics"] = metrics
         except Exception:
             traceback.print_exc()
             return self.send_json(500, {"error": "inference failed; check server terminal"})
@@ -183,6 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("adapter", nargs="?", type=Path, default=Path("../smollm2_qlora_v1"))
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--metrics", action="store_true", help="measure synchronized generation and CUDA allocator peaks")
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("port must be from 0 to 65535")
@@ -190,6 +214,7 @@ if __name__ == "__main__":
     # ponytail: loopback + one request at a time; production needs a serving stack, not external exposure of this demo.
     with HTTPServer(("127.0.0.1", args.port), Handler) as server:
         server.tokenizer, server.model, server.quantized_modules = tokenizer, model, count
+        server.metrics = args.metrics
         print(f"READY http://127.0.0.1:{server.server_port} | device={model.device} | NF4={count}", flush=True)
         try:
             server.serve_forever()
@@ -311,6 +336,8 @@ response: 200 {'text': 'Device network status:\n\nDevice network', 'input_tokens
 HTTP 요청·응답 경로는 성공했지만 한 단어 정답 `failed`·`healthy`를 생성하지는 못했습니다. 서빙은 기존 모델을 호출하는 경로를 제공할 뿐 응답 품질을 자동 개선하지 않습니다. 이 응답은 지연시간·처리량·GPU 메모리·동시 처리·독립 품질 평가의 결과가 아닙니다. 호출 뒤 서버 종료는5절의 Ctrl+C 절차로 마무리합니다.
 
 ## 7. 복습
+
+선택형 `--metrics`는 [22장](22-serving-benchmark.md)에서 사용합니다. 이 장의 실행 명령은 해당 옵션을 켜지 않아 기존 응답 형식과 생성 조건을 유지합니다.
 
 - [ ] 모델을 메모리에 올리는 과정과 요청 한 건을 처리하는 과정을 구분한다.
 - [ ] 서버와 클라이언트가 서로 다른 프로세스라는 점을 설명한다.

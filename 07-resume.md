@@ -121,6 +121,8 @@ network current status -> {'healthy': 1}
 
 [21장 API 서빙](21-api-serving.md)은 저장 QLoRA를 한 번 복원해 로컬 HTTP 요청으로 호출하고 종료합니다. 모델을 읽기만 하며 두 터미널은 같은 VM에 연결합니다. CPU 미학습 fixture의 코드 검사와 별도 CUDA health/생성 HTTP200 결과를 구분합니다. 입력41·40토큰/새8토큰씩의 응답을 받았지만 한 단어 정답은 생성하지 못했으며, 운영 배포·외부 노출·재학습은 포함하지 않습니다.
 
+[22장 서빙 성능](22-serving-benchmark.md)은 기존 QLoRA의 순차 요청을 워밍업/측정으로 나누고 HTTP 지연·생성 시간·실제 토큰/초·CUDA allocator peak를 새 JSON으로 저장합니다. CPU 미학습 fixture 검증과 VM CUDA 측정은 별개이며 TTFT·동시 부하·재학습은 하지 않습니다.
+
 - [ ] `encode` 규칙과 학습되는 가중치를 구분한다.
 - [ ] `zero_grad()`, `backward()`, `step()`의 역할을 설명한다.
 - [ ] `eval()`과 `no_grad()`를 구분한다.
