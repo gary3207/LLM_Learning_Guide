@@ -10,9 +10,9 @@
 |---|---|---|
 | 1/3 | 같은 입력, 다른 가중치 | 직접 정한 비중의 가중합 |
 | 2/3 | Query·Key 점수와 softmax | 내적·크기 조정·비중 계산 |
-| 3/3 | Value 가중합과 고정 문맥 비교 | 후속 실습 예정 |
+| 3/3 | Value 가중합과 고정 문맥 비교 | Q·K에서 계산한 비중으로 V 가중합 |
 
-이번 코드는 **Attention 전체 구현이나 모델 학습이 아닙니다.** 1/3에서는 비중을 직접 정하고, 2/3에서는 직접 정한 Query·Key에서 비중을 계산합니다. PyTorch·GPU·체크포인트가 필요하지 않으며 파일을 생성하거나 수정하지 않습니다.
+이번 코드는 **Transformer 전체 구현이나 모델 학습이 아닙니다.** 1/3에서는 비중을 직접 정하고, 2/3에서는 직접 정한 Query·Key에서 비중을 계산하며, 3/3에서는 그 비중으로 Value를 가중합합니다. PyTorch·GPU·체크포인트가 필요하지 않으며 파일을 생성하거나 수정하지 않습니다.
 
 ## 1. 펼치기와 가중합의 차이
 
@@ -220,6 +220,114 @@ Q2: [0.0, 1.0]
 - [ ] 내적 점수 0이 비중 0을 뜻하지 않는 이유는 무엇인가?
 - [ ] Q·K를 사람이 정한 것과, 계산된 비중을 사람이 정한 것을 구분하는가?
 
-3/3에서는 이번에 계산한 비중으로 Value를 가중합하고, 기존 `Flatten → Linear` 모델과의 차이를 연결합니다. 여러 head·전체 위치 계산·causal mask·학습은 아직 구현하지 않습니다.
+3/3에서는 이번에 계산한 비중으로 Value를 가중합하고, 기존 `Flatten → Linear` 모델과의 차이를 연결합니다.
+
+## 7. 3/3단계 · 계산된 비중으로 Value 섞기
+
+2/3의 Query·Key와 계산 방식을 그대로 유지하고 Value 가중합을 연결합니다. 이번에는 Key와 Value의 역할이 다름을 드러내기 위해 **Value를 앞 실습과 다른 교육용 숫자**로 정합니다. Key와 Value는 같은 토큰 순서에 대응해야 합니다.
+
+| 토큰 | Key: 비교용 | Value: 섞을 정보 |
+|---|---|---|
+| gpu | `[1.0, 0.0]` | `[10.0, 0.0]` |
+| current | `[0.0, 1.0]` | `[0.0, 10.0]` |
+| status | `[1.0, 1.0]` | `[1.0, 1.0]` |
+
+3/3 안에서는 Key·Value를 모두 고정하고 Query만 바꿉니다. Q·K·V는 여전히 학습된 벡터가 아닙니다. 이 코드는 Query 한 개의 scaled dot-product Attention 출력을 계산하며, 두 Query를 각각 독립적으로 실행해 비교합니다. 여러 head·전체 위치 계산·causal mask·학습은 구현하지 않습니다. 계산 근거는 *Attention Is All You Need*, §3.2.1입니다.
+
+### 전체 명령
+
+같은 **Ubuntu VM 터미널**, `~/llm-lab/source`의 기존 가상환경에서 실행합니다. Python 표준 라이브러리만 사용하며 파일 저장·수정이나 모델 복원이 없습니다. 이전 실습을 파일로 저장할 필요도 없습니다.
+
+**소스:** [03-attention-output.py](source/08-attention/03-attention-output.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, sqrt
+
+# 교육용 Q·K·V입니다. Key는 비교용, Value는 섞을 정보입니다.
+tokens = ["gpu", "current", "status"]
+keys = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+values = [[10.0, 0.0], [0.0, 10.0], [1.0, 1.0]]
+cases = [
+    ("Q1", [1.0, 0.0], [4.412233019477645, 2.378870239084068]),
+    ("Q2", [0.0, 1.0], [2.378870239084068, 4.412233019477645]),
+]
+assert len(tokens) == len(keys) == len(values)
+assert all(len(vector) == 2 for vector in keys + values)
+print("토큰 순서:", tokens)
+print("Value:", values)
+for label, query, expected in cases:
+    scores = [sum(q * k for q, k in zip(query, key, strict=True)) for key in keys]
+    scaled = [score / sqrt(len(query)) for score in scores]
+    exps = [exp(score - max(scaled)) for score in scaled]
+    weights = [number / sum(exps) for number in exps]
+    assert isclose(sum(weights), 1.0)
+    output = [sum(weight * value[column] for weight, value in zip(weights, values, strict=True))
+              for column in range(len(values[0]))]
+    assert len(output) == len(values[0])
+    assert all(isclose(actual, target) for actual, target in zip(output, expected, strict=True))
+    print(f"{label}: {query}")
+    print("  비중:", [round(number, 4) for number in weights])
+    print("  출력 벡터:", [round(number, 4) for number in output])
+
+print("검사 통과: 같은 Key·Value도 Query에 따라 출력 벡터가 달라집니다")
+PY
+```
+
+### 코드와 계산 해설
+
+`scores → scaled → exps → weights`는 2/3과 같습니다. 새로 연결하는 부분은 `output`이며, 계산된 비중과 Value를 토큰 순서대로 묶고 각 좌표를 가중합합니다.
+
+```text
+Q1의 출력 첫 좌표 ≈ 0.4011×10 + 0.1978×0  + 0.4011×1 ≈ 4.4122
+Q1의 출력 둘째 좌표 ≈ 0.4011×0  + 0.1978×10 + 0.4011×1 ≈ 2.3789
+```
+
+위 비중은 표시를 위해 반올림한 값이므로 이를 직접 곱하면 끝자리 차이가 납니다. 코드는 반올림 전 비중으로 계산합니다. `expected`는 별도 고정밀 계산에서 구한 검사 기준이고, 출력 계산에는 사용하지 않습니다.
+
+Key 세 개에서 비중 세 개가 나오지만, Value가 각각 두 숫자이므로 Query 하나의 출력도 두 숫자입니다. **출력 벡터의 좌표 합이 1일 필요는 없습니다.** 비중 합이 1인 것과, 그 비중으로 합친 정보 벡터를 구분합니다. 이 출력은 다음 토큰 예측 확률이 아닙니다.
+
+### 계산 실행 예시
+
+아래는 코드를 Python으로 실행해 확인한 산술 출력 예시입니다. 모델 학습이나 다음 단어 예측 결과가 아닙니다.
+
+```text
+토큰 순서: ['gpu', 'current', 'status']
+Value: [[10.0, 0.0], [0.0, 10.0], [1.0, 1.0]]
+Q1: [1.0, 0.0]
+  비중: [0.4011, 0.1978, 0.4011]
+  출력 벡터: [4.4122, 2.3789]
+Q2: [0.0, 1.0]
+  비중: [0.1978, 0.4011, 0.4011]
+  출력 벡터: [2.3789, 4.4122]
+검사 통과: 같은 Key·Value도 Query에 따라 출력 벡터가 달라집니다
+```
+
+### 기존 세 토큰 모델과 비교
+
+| 항목 | 기존 세 토큰 모델 | 이번 산술 예제 |
+|---|---|---|
+| 입력 정보 | 마지막 세 토큰의 8차원 임베딩 | 직접 정한 Q·K·V |
+| 정보 조합 | 임베딩 3개를 길이24로 펼친 뒤 Linear | Q·K에서 비중을 계산해 V를 가중합 |
+| 조합 계수 | 추론 중 고정된 Linear 파라미터 | Q·K 입력에 따라 바뀌는 혼합 비중 |
+| 출력 | 어휘별 다음 토큰 점수 | Query 하나당 2차원 정보 벡터 |
+| 이번 실행에서 학습 | 기존 저장 모델의 학습과 별개 | 없음 |
+
+실제 Attention 모델의 **학습된 파라미터도 추론 중에는 고정**됩니다. 달라지는 것은 입력에서 계산되는 Attention 비중입니다. 기존 모델도 입력 임베딩이 바뀌면 출력이 달라지므로, 단순히 “출력이 변한다”만으로 두 구조의 차이를 설명하지 않습니다.
+
+Attention으로 바꾼다고 입력에서 잘린 과거 토큰이 저절로 보이지는 않습니다. 제공한 토큰 범위와 정보를 조합하는 방식은 별도입니다. 다음 토큰 예측 모델로 만들려면 이 정보 벡터를 어휘 점수로 바꾸는 출력층 등 추가 구성이 필요합니다.
+
+### 복습과 이후 연결
+
+- [ ] Q·K는 비중 계산용, V는 섞을 정보임을 구분한다.
+- [ ] 같은 K·V에서 Q만 바꿨는데 출력이 달라진 과정을 설명한다.
+- [ ] 비중 합1과 출력 벡터의 좌표 합을 구분한다.
+- [ ] 현재 예제가 학습된 Transformer나 문장 생성기가 아님을 설명한다.
+
+이번 3/3의 출력까지 확인하면 입문 산술 흐름을 마칩니다. 이후에는 Q·K·V를 직접 지정하는 대신 학습되는 선형 변환으로 만드는 방식으로 연결할 수 있습니다. 이 장에서는 해당 학습과 구현을 진행하지 않습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
