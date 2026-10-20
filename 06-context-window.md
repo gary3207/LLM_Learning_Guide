@@ -2,7 +2,7 @@
 
 [← 이전: 다음 토큰 예측](05-next-token.md) · [학습 목차](README.md) · [다음: 학습 점검과 다음 단계 →](07-resume.md)
 
-마지막 토큰 하나만으로 구별할 수 없는 예문을 만들고, 입력을 두 토큰으로 늘려 작은 신경망을 학습합니다. 앞 장과 같은 Python·PyTorch 가상환경에서 진행하며, 작업 폴더는 `~/llm-lab/source`입니다. 마지막에는 신경망 없이 두 토큰과 세 토큰의 정보 차이를 비교하는 확장 연습을 제공합니다.
+마지막 토큰 하나만으로 구별할 수 없는 예문을 만들고, 입력을 두 토큰으로 늘려 작은 신경망을 학습합니다. 앞 장과 같은 Python·PyTorch 가상환경에서 진행하며, 작업 폴더는 `~/llm-lab/source`입니다. 확장 연습에서는 두 토큰과 세 토큰의 정보 차이를 비교한 뒤, 세 토큰 모델의 학습·저장까지 진행합니다.
 
 ## 이 장의 목표
 
@@ -18,6 +18,7 @@
 | 2 | 두 토큰 모델 학습·저장 | 학습 쌍 예측과 loss 확인 |
 | 3 | 두 토큰 모델 복원·생성 | 문맥 이동과 종료·길이 제한 확인 |
 | 확장 연습 | 두 토큰·세 토큰별 정답 빈도 비교 | 입력 범위를 늘렸을 때 충돌이 사라지는지 확인 |
+| 확장 2/3 | 세 토큰 모델 학습·별도 저장 | 학습 쌍 예측·loss·저장 확인, 복원·생성은 후속 단계 |
 
 아래 출력은 **실행 예시**입니다. 학습 loss와 생성 결과는 환경·난수 초기화·저장된 가중치에 따라 달라질 수 있습니다. seed를 고정해도 모든 환경에서 숫자가 완전히 같다고 보장하지 않습니다. 빈도 비교는 신경망 결과가 아니라 주어진 문자열의 개수를 계산한 것입니다.
 
@@ -398,7 +399,7 @@ network -> network status healthy | 종료: <eos>
 - [ ] `Flatten(start_dim=1)`이 배치 축을 보존하는 이유를 설명한다.
 - [ ] 후보 점수의 마지막 차원이 7인 이유를 말할 수 있다.
 - [ ] `0.0000`을 정확한 0이나 일반화 성공으로 단정하지 않는다.
-- [ ] 세 토큰 빈도 비교와 선택 과제인 세 토큰 신경망 구현을 구별한다.
+- [ ] 세 토큰 빈도 비교와 세 토큰 신경망 학습 결과를 구별한다.
 
 <details>
 <summary>확인 질문과 답</summary>
@@ -406,7 +407,7 @@ network -> network status healthy | 종료: <eos>
 - **두 토큰을 평균내도 같은 코드인가요?** 아닙니다. 이 코드는 순서대로 펼쳐 위치별 자리를 유지합니다.
 - **생성 기록이 길어지면 자동으로 더 긴 문맥을 보나요?** 아닙니다. 입력은 여전히 마지막 두 토큰입니다.
 - **`current status`로 끝나는 두 예문을 이 두 토큰 모델에 오래 학습시키면 둘 다 구별할 수 있나요?** 그 입력만으로는 두 경우를 구분할 정보가 없습니다.
-- **세 토큰 입력의 2/2는 모델 학습 성공인가요?** 아닙니다. 빈도표에서 충돌이 사라졌다는 뜻입니다. 신경망 구현은 별도의 선택 과제입니다.
+- **세 토큰 입력의 2/2는 모델 학습 성공인가요?** 아닙니다. 빈도표에서 충돌이 사라졌다는 뜻입니다. 뒤의 확장 2/3단계에서 실제 모델을 학습해 별도로 검사합니다.
 
 </details>
 
@@ -500,7 +501,162 @@ network current status -> {'healthy': 1}
 
 출력 마지막의 `검사 통과`는 코드의 빈도 계산과 예상값 비교가 통과했다는 뜻입니다. **학습을 더 반복해도 입력에서 제외한 앞 단어를 볼 수는 없습니다.** 위 차이를 확인한 뒤 2/3단계의 모델 학습으로 넘어갑니다.
 
-선택적인 다음 과제로 세 토큰 신경망의 데이터 준비·학습·복원·생성을 설계할 수 있습니다. 그 모델 코드는 이 장의 범위에 포함하지 않습니다. 입력 길이를 바꾸면 데이터 슬라이스, `Linear`의 입력 크기, 생성 중 문맥 선택, 저장·복원 구조를 함께 맞춰야 합니다.
+다음 절에서는 세 토큰 신경망을 학습합니다. 입력 길이를 바꾸면 데이터 슬라이스, `Linear`의 입력 크기, 생성 중 문맥 선택, 저장·복원 구조를 함께 맞춰야 합니다.
+
+## 확장 2/3단계 · 세 토큰 모델 학습·저장
+
+### 목표와 실행 위치
+
+빈도 비교에서 확인한 구분 정보를 실제 신경망 입력에 넣습니다. **OCI VM의 `~/llm-lab/source`, 기존 PyTorch 가상환경**에서 실행합니다. 이 작은 모델은 CPU를 사용합니다. GPU VM이라고 모든 코드가 자동으로 GPU에서 실행되는 것은 아닙니다.
+
+가상환경을 새로 설치하지 않고 기존 환경을 활성화합니다.
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+```
+
+`python: command not found`가 나오면 기존 가상환경 활성화 여부를 먼저 확인합니다. `.venv/bin/activate`도 없다면 설치를 반복하기 전에 실제 기존 환경 경로를 확인합니다.
+
+### 세 칸의 입력 만들기
+
+시작 단어 `gpu` 또는 `network` 뒤를 예측하는 방식은 유지합니다. 세 칸을 채우기 위해 시작 표시를 두 개 사용합니다.
+
+```text
+<bos> <bos> gpu        → current
+<bos> gpu current      → status
+gpu current status     → failed
+current status failed  → <eos>
+
+<bos> <bos> network    → current
+<bos> network current  → status
+network current status → healthy
+current status healthy → <eos>
+```
+
+`range(3, len(seq))`는 입력 세 칸 다음부터 정답을 고르고, `seq[i-3:i]`는 그 직전 세 토큰을 가져옵니다. 문장을 각각 처리하므로 문장 사이에 가짜 학습 쌍을 만들지 않습니다.
+
+### 전체 실행 코드
+
+**소스:** [05-train-context3.py](source/06-context-window/05-train-context3.py). 파일 내용을 VM의 `~/llm-lab/source/train_context3.py`로 저장했다면 `python train_context3.py`로 실행할 수 있습니다. 또는 아래 전체를 그대로 붙여 넣습니다.
+
+> [!WARNING]
+> 실행하면 `~/llm-lab/next_token_context3.pt`를 새로 저장합니다. 기존 `next_token.pt`·`next_token_context2.pt`는 변경하지 않습니다. 저장 대상이 이미 있으면 보호 오류로 중단하며, 파일을 삭제하거나 보호 검사를 제거하지 않습니다.
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import torch
+from torch import nn
+
+output = Path.home() / "llm-lab/next_token_context3.pt"
+if output.exists():
+    raise FileExistsError(f"기존 파일을 보호합니다: {output}")
+
+sentences = ["gpu current status failed", "network current status healthy"]
+sequences = [["<bos>", "<bos>"] + s.split() + ["<eos>"] for s in sentences]
+vocab = sorted({token for seq in sequences for token in seq})
+to_id = {token: i for i, token in enumerate(vocab)}
+
+pairs = []
+for seq in sequences:
+    for i in range(3, len(seq)):
+        pairs.append((seq[i-3:i], seq[i]))
+
+assert len(pairs) == 8
+assert (["gpu", "current", "status"], "failed") in pairs
+assert (["network", "current", "status"], "healthy") in pairs
+
+x = torch.tensor([[to_id[t] for t in ctx] for ctx, _ in pairs])
+y = torch.tensor([to_id[target] for _, target in pairs])
+assert x.shape == (8, 3) and y.shape == (8,)
+
+torch.manual_seed(42)
+torch.set_num_threads(1)
+
+model = nn.Sequential(
+    nn.Embedding(len(vocab), 8),
+    nn.Flatten(start_dim=1),
+    nn.Linear(24, len(vocab)),
+)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+
+with torch.no_grad():
+    initial_loss = loss_fn(model(x), y).item()
+
+model.train()
+for _ in range(300):
+    optimizer.zero_grad()
+    loss = loss_fn(model(x), y)
+    assert torch.isfinite(loss).item(), "학습 loss가 유한하지 않습니다"
+    loss.backward()
+    optimizer.step()
+
+model.eval()
+with torch.no_grad():
+    scores = model(x)
+    assert torch.isfinite(scores).all().item(), "예측 점수가 유한하지 않습니다"
+    final_loss = loss_fn(scores, y).item()
+    predicted = scores.argmax(dim=1)
+
+print(f"학습 전 loss: {initial_loss:.4f}")
+print(f"학습 후 loss: {final_loss:.4f}")
+for (context, target), guess in zip(pairs, predicted.tolist()):
+    print(f"{' '.join(context)} -> {vocab[guess]} | 정답: {target}")
+
+correct = (predicted == y).sum().item()
+print(f"학습 쌍 정확도: {correct}/{len(pairs)}")
+assert correct == len(pairs), "학습 쌍을 모두 맞히지 못했습니다"
+
+with output.open("xb") as file:
+    torch.save({
+        "vocab": vocab,
+        "context_size": 3,
+        "embedding_dim": 8,
+        "model_state_dict": model.state_dict(),
+    }, file)
+
+print(f"저장 완료: {output}")
+PY
+```
+
+### 두 토큰 모델과 달라진 부분
+
+| 항목 | 두 토큰 모델 | 이번 세 토큰 모델 |
+|---|---|---|
+| 예문 | `gpu status failed` 등 | 중간에 `current` 추가 |
+| 시작 표시 | `<bos>` 1개 | `<bos>` 2개 |
+| 입력 슬라이스 | `seq[i-2:i]` | `seq[i-3:i]` |
+| 학습 입력 | `[6, 2]` | `[8, 3]` |
+| 어휘 수 | 7 | 8: `current` 추가 |
+| 임베딩 후 | `[6, 2, 8]` | `[8, 3, 8]` |
+| 펼친 뒤 | `[6, 16]` | `[8, 24]` |
+| 최종 점수 | `[6, 7]` | `[8, 8]` |
+| 저장 문맥 길이 | `context_size=2` | `context_size=3` |
+| 저장 파일 | `next_token_context2.pt` | `next_token_context3.pt` |
+
+`Linear(24, len(vocab))`의 24는 세 토큰의 임베딩 벡터를 순서대로 연결한 입력 크기입니다. 점수 `[8, 8]`의 앞 8은 학습 쌍 수, 뒤 8은 다음 토큰 후보 수로 서로 다른 의미입니다. `y`는 정답 ID 8개인 `[8]` 형태입니다.
+
+학습 흐름은 기존처럼 `zero_grad → loss → backward → step`입니다. 학습 전후 loss를 비교하고 각 입력의 예측·정답을 출력합니다. 8쌍을 모두 맞히는 검사 후에만 저장합니다. `output.open("xb")`는 배타적 생성으로 기존 파일 덮어쓰기를 막습니다.
+
+### 실행 결과에서 확인할 것
+
+아래는 **성공 시 확인할 조건**이며, 실제 실행 로그나 이미 측정한 수치가 아닙니다. loss 숫자는 실행 후 확인합니다.
+
+- `gpu current status`의 예측이 `failed`, `network current status`의 예측이 `healthy`인지 확인합니다.
+- `학습 쌍 정확도: 8/8`과 새 모델의 `저장 완료` 출력을 확인합니다.
+- `0.0000`이 표시되어도 반올림된 값이며 정확한 0을 뜻하지 않습니다.
+- 같은 학습 쌍으로 평가하므로 8/8을 새 문장에 대한 성능으로 해석하지 않습니다.
+
+오류나 검사 실패가 나오면 출력을 확인하고, 성공한 것처럼 넘어가지 않습니다. 모델 복원·문장 생성·종료 검사는 **3/3단계의 후속 실습**으로 구분합니다.
+
+### 복습
+
+- 왜 `<bos>` 두 개가 필요한가요?
+- 문맥 길이를 바꿀 때 왜 데이터 슬라이스뿐 아니라 `Linear` 입력 크기도 바꾸나요?
+- 저장한 `context_size=3`과 같은 구조로 복원해야 하는 이유는 무엇인가요?
 
 ---
 
