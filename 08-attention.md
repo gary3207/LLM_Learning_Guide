@@ -1569,6 +1569,142 @@ hidden·QKV·위치 표현은 고정이며 Attention 전체를 학습하지 않�
 - [ ] 출력 loss가 갱신 전인지 후인지 구분한다.
 - [ ] 같은 한 입력의 학습 성공과 새 입력의 평가를 구분한다.
 
-다음에는 같은 출력층 계산을 PyTorch 자동 미분과 비교해 수동 기울기·갱신과의 대응을 확인할 수 있습니다.
+다음 절에서는 같은 출력층 계산을 PyTorch 자동 미분과 비교해 수동 기울기·갱신과의 대응을 확인합니다.
+
+## 19. 후속 실습 · 수동 계산과 PyTorch 자동 미분 비교
+
+### 목표와 비교 조건
+
+18절에서는 기울기 공식을 직접 써서 출력층을 학습했습니다. 이번에는 **초기 행렬에서 한 번만 갱신**하며 수동 기울기 여섯 개를 PyTorch `backward()` 결과와 비교합니다. 20회 학습 뒤의 행렬을 가져오지 않습니다. 고정 hidden·교육용 정답 `failed`·학습률 `0.01`을 유지합니다.
+
+행벡터 규약은 그대로이며 `h`는 `1×2`, `W`는 `2×3`, `h @ W`는 `1×3`입니다. bias는 없습니다. 배치 크기 1의 점수와 정답 번호 하나를 `CrossEntropyLoss`에 넣습니다. **이미 softmax한 확률이 아니라 logits가 입력**입니다. CPU의 `float64`로 비교하며 허용 오차는 `1e-12`입니다. 이는 산술 비교용 설정이지 모든 학습에서 float64를 권장한다는 뜻은 아닙니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source`와 **앞 장에서 PyTorch를 사용한 가상환경**에서 실행합니다. `cd`는 폴더 이동, `source`는 환경 활성화입니다. `python -` 뒤 마지막 `PY`까지가 실행할 코드입니다. 설치·GPU·파일 읽기·저장은 없으며 작은 출력층만 한 번 갱신합니다. `ModuleNotFoundError: torch`가 나오면 설치부터 반복하지 말고 기존 가상환경과 Python 경로를 확인합니다.
+
+**소스:** [15-output-autograd.py](source/08-attention/15-output-autograd.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, log
+import torch
+
+# 앞 실습과 같은 초기값입니다. 20회 갱신한 행렬을 가져오지 않습니다.
+hidden = [1.61332902229994, 5.931436569567589]
+vocabulary = ["failed", "healthy", "<eos>"]
+weights = [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0]]  # 2×3, bias 없음
+target = "failed"
+learning_rate = 0.01
+assert target in vocabulary
+target_index = vocabulary.index(target)
+
+# 앞 표준 라이브러리 계산으로 수동 비교값을 만듭니다.
+scores = [sum(hidden[r] * weights[r][c] for r in range(2)) for c in range(3)]
+maximum = max(scores)
+exps = [exp(z - maximum) for z in scores]
+probabilities = [value / sum(exps) for value in exps]
+manual_loss = log(sum(exps)) - (scores[target_index] - maximum)
+d_logits = [p - (1.0 if c == target_index else 0.0)
+            for c, p in enumerate(probabilities)]
+manual_grad = [[x * gradient for gradient in d_logits] for x in hidden]
+manual_updated = [[weights[r][c] - learning_rate * manual_grad[r][c]
+                   for c in range(3)] for r in range(2)]
+
+# CPU·float64로 비교합니다. h는 고정, W만 학습 대상입니다.
+h = torch.tensor([hidden], dtype=torch.float64, device="cpu")  # 1×2
+W = torch.nn.Parameter(torch.tensor(weights, dtype=torch.float64, device="cpu"))
+y = torch.tensor([target_index], dtype=torch.long, device="cpu")  # 정답 번호 1개
+initial_W = W.detach().clone()
+loss_fn = torch.nn.CrossEntropyLoss(reduction="mean", label_smoothing=0.0)
+optimizer = torch.optim.SGD([W], lr=learning_rate, momentum=0.0, weight_decay=0.0)
+optimizer.zero_grad(set_to_none=True)
+assert W.grad is None
+logits = h @ W  # 1×3, 정답은 shape (1,)
+loss = loss_fn(logits, y)  # softmax 전 점수를 넣습니다.
+assert isclose(loss.item(), manual_loss, rel_tol=0.0, abs_tol=1e-12)
+loss.backward()
+assert W.grad is not None
+expected_grad = torch.tensor(manual_grad, dtype=torch.float64, device="cpu")
+assert torch.allclose(W.grad, expected_grad, rtol=0.0, atol=1e-12)
+assert torch.equal(W.detach(), initial_W)  # backward는 가중치를 바꾸지 않습니다.
+assert not h.requires_grad and h.grad is None
+print("교육용 정답 토큰:", target)
+print("비교 환경: CPU / float64")
+for r in range(2):
+    for c, token in enumerate(vocabulary):
+        print(f"W[{r},{c}] → {token}: 수동={manual_grad[r][c]:+.4f}, 자동={W.grad[r,c].item():+.4f}")
+
+optimizer.step()  # 계산된 기울기로 W를 한 번 바꿉니다.
+expected_W = torch.tensor(manual_updated, dtype=torch.float64, device="cpu")
+assert torch.allclose(W.detach(), expected_W, rtol=0.0, atol=1e-12)
+with torch.no_grad():
+    new_logits = h @ W
+    new_loss = loss_fn(new_logits, y).item()
+    new_probability = torch.softmax(new_logits, dim=1)[0, target_index].item()
+assert isclose(new_loss, 1.1487649561797542, rel_tol=0.0, abs_tol=1e-12)
+assert isclose(new_probability, 0.31702807125207865, rel_tol=0.0, abs_tol=1e-12)
+assert new_loss < loss.item()
+updated_W = W.detach().clone()
+optimizer.zero_grad(set_to_none=True)  # 다음 반복에 대비해 기울기만 지웁니다.
+assert W.grad is None and torch.equal(W.detach(), updated_W)
+print("SGD 갱신과 수동 갱신: 가중치 6개 일치")
+print(f"failed 확률: {probabilities[target_index]:.4f} → {new_probability:.4f}")
+print(f"loss: {loss.item():.4f} → {new_loss:.4f}")
+print("검사 통과: 수동·자동 기울기와 한 번 갱신 결과가 일치합니다. 파일 저장은 없습니다")
+PY
+```
+
+### 세 동작의 차이
+
+| 동작 | 바꾸는 것 | 바꾸지 않는 것 |
+|---|---|---|
+| `optimizer.zero_grad(set_to_none=True)` | 대상 파라미터의 기울기를 `None`으로 초기화 | 가중치 값 |
+| `loss.backward()` | 계산 그래프를 따라 미분해 `W.grad`에 기울기 누적 | 가중치 값 |
+| `optimizer.step()` | 현재 기울기로 가중치 갱신 | 기울기를 자동 초기화하지 않음 |
+
+첫 `zero_grad()`는 기울기 없는 상태로 시작합니다. 이 새 파라미터의 첫 계산에는 이전 기울기가 없지만, 반복 학습에서도 사용할 기본 순서를 보여줍니다. 마지막 `zero_grad()`는 **기울기만 지우고 갱신된 가중치는 그대로 남는지** 확인합니다. 새 순전파 없이 같은 그래프에 `backward()`를 반복하는 실습은 아닙니다.
+
+`nn.Parameter`는 기본적으로 기울기 계산을 켭니다. 여기서는 `[W]`만 optimizer에 전달하고 `h`는 고정합니다. 수동 코드의 `hidden[r] × d_logits[c]`를 자동 미분이 대신 계산하는 것이지 정답이나 갱신 보폭을 대신 정해 주는 것이 아닙니다.
+
+`detach().clone()`은 비교용 값을 계산 그래프에서 분리해 별도로 복사합니다. 갱신 후 확인에는 `torch.no_grad()`로 새 미분 그래프를 만들지 않습니다. `softmax(..., dim=1)`은 출력 어휘 축에서 확률을 구하기 위한 것이며 loss 입력에는 사용하지 않습니다. `momentum=0`, `weight_decay=0`인 기본 SGD이므로 앞의 `W - 학습률 × 기울기`와 직접 비교할 수 있습니다.
+
+근거: PyTorch 공식 [자동 미분 입문](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html), [CrossEntropyLoss](https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html), [SGD](https://docs.pytorch.org/docs/stable/generated/torch.optim.SGD.html).
+
+### 로컬 실행 예시
+
+로컬 격리 환경 Python 3.12.13·PyTorch 2.14.1+cpu에서 실제 실행해 모든 assert를 통과한 출력입니다. VM 버전과 마지막 자릿수는 다를 수 있습니다. 검사는 반올림 전 값을 비교하며 아래 표시는 소수 네 자리입니다.
+
+```text
+교육용 정답 토큰: failed
+비교 환경: CPU / float64
+W[0,0] → failed: 수동=-1.2845, 자동=-1.2845
+W[0,1] → healthy: 수동=+1.2715, 자동=+1.2715
+W[0,2] → <eos>: 수동=+0.0131, 자동=+0.0131
+W[1,0] → failed: 수동=-4.7225, 자동=-4.7225
+W[1,1] → healthy: 수동=+4.6745, 자동=+4.6745
+W[1,2] → <eos>: 수동=+0.0480, 자동=+0.0480
+SGD 갱신과 수동 갱신: 가중치 6개 일치
+failed 확률: 0.2038 → 0.3170
+loss: 1.5905 → 1.1488
+검사 통과: 수동·자동 기울기와 한 번 갱신 결과가 일치합니다. 파일 저장은 없습니다
+```
+
+검증 환경에는 NumPy가 없어 PyTorch import 때 NumPy 초기화 경고가 함께 표시됐지만, 이 코드는 NumPy 변환을 사용하지 않아 위 계산과 검사를 완료했습니다. 이는 PyTorch import 실패나 assert 실패와는 다릅니다. 편집기의 별도 Python에 torch가 없다는 경고도 실제 실행 인터프리터의 결과와 구분합니다.
+
+### 한계와 복습
+
+이번에는 **수동·자동 계산의 일치**를 확인했으며 성능을 개선하는 새 기법을 추가한 것이 아닙니다. 고정 입력·한 정답·한 번 갱신이며 Attention 내부 역전파·전체 모델 학습·저장·문장 생성은 없습니다. 일반화 성능도 검증하지 않습니다.
+
+- [ ] `backward()`와 `step()` 중 실제 가중치를 바꾸는 동작을 고른다.
+- [ ] `zero_grad()`가 가중치를 원래 값으로 돌리는 명령이 아님을 설명한다.
+- [ ] CrossEntropyLoss에 확률이 아닌 logits를 넣는 이유를 설명한다.
+- [ ] 고정 hidden과 학습 대상 W를 구분한다.
+
+다음에는 고정했던 hidden에 대해서도 기울기를 구해 출력층에서 입력 방향으로의 역전파를 확인할 수 있습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
