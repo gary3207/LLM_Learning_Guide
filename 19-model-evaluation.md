@@ -232,7 +232,7 @@ CPU로 평가할 때만 마지막 옵션을 `--device cpu`로 바꿉니다. CUDA
 - 문항/그룹 집계, 공백·대소문자·빈 응답·다른 라벨·추가 문구 처리.
 - 입력 후보 파일 불변, 기존 JSON 덮어쓰기 거부, CUDA 없는 환경의 명시 실패.
 
-**학습된 세 모델의 이번8문항 결과와 CUDA 평가는 각 환경의 실행 출력으로 확인합니다.** 여기에는 아직 학습 후보의 새 수치 표를 싣지 않습니다. 이전 네 질문의 성공/실패를 새로운 네 질문의 결과로 대신하지 않습니다.
+위 검사는 코드 경로 검증입니다. 아래의 **기존 학습 후보를 사용한 CUDA 실행 예시**와 구분합니다. 각 환경의 성공 여부와 수치는 자신의 출력으로 확인하며, 이전 네 질문의 결과를 새로운 네 질문의 결과로 대신하지 않습니다.
 
 개발 환경에서 검사를 재실행하려면 저장소 루트에서 실행합니다. 첫 명령은 표준 라이브러리만 사용합니다. 두 번째 명령은 실제 PyTorch/Transformers/PEFT와 원본 캐시가 필요하고, 임시 미학습 모델을 저장할 디스크 공간을 사용합니다. 기존 학습 폴더를 사용하거나 변경하지 않습니다.
 
@@ -242,6 +242,64 @@ python source/19-model-evaluation/test_evaluation.py --integration
 ```
 
 검사 소스: [test_evaluation.py](source/19-model-evaluation/test_evaluation.py).
+
+### 기존 학습 후보의 CUDA 실행 예시
+
+Ubuntu VM의 제공된 실행 로그에서 세 모델 모두 CUDA·float32로8문항씩 평가하고 새 JSON을 저장한 결과를 확인했습니다. 재학습 없이17장 전체 SFT와18장 LoRA 저장물을 읽은 실행입니다. 위의 미학습 fixture 결과가 아닙니다. 아래는 출력된 그룹 평균을 그대로 옮겼으며, 반올림된 문항 loss로 평균을 다시 계산한 값과 마지막 자리가 다를 수 있습니다.
+
+| 모델 | 학습 질문 정답 / 평균 loss | 기존 probe 정답 / 평균 loss | 추가 진단 정답 / 평균 loss |
+|---|---|---|---|
+| 원본 | 0/2 · 12.7998 | 0/2 · 9.7420 | 0/4 · 10.5820 |
+| 전체 SFT | 2/2 · 0.0138 | 2/2 · 0.1679 | 3/4 · 0.5150 |
+| LoRA | 0/2 · 10.0753 | 0/2 · 7.3542 | 0/4 · 8.3529 |
+
+<details>
+<summary>문항별 실제 CUDA 출력 펼치기</summary>
+
+```text
+장치: cuda | float32 | 재학습 없음 | 모델당 8문항
+[base/train/1] other | 정답=failed | 생성='Device GPU status: 1' | loss=14.4325
+[base/train/2] other | 정답=healthy | 생성='Device network status:\n\n- Device' | loss=11.1671
+[base/probe/3] other | 정답=failed | 생성="The GPU status is currently '0'." | loss=12.3041
+[base/probe/4] other | 정답=healthy | 생성='The network status is currently stable and functioning' | loss=7.1800
+[base/diagnostic/5] other | 정답=failed | 생성='GPU status:\n\nGPU status:' | loss=16.2342
+[base/diagnostic/6] other | 정답=healthy | 생성='Network status: Unavailable' | loss=10.6410
+[base/diagnostic/7] extra_text | 정답=failed | 생성='The GPU status is "failed".' | loss=9.3431
+[base/diagnostic/8] other | 정답=healthy | 생성='Network status: "Network Status: Status' | loss=6.1097
+[base/train] 정답 0/2 | 평균 loss=12.7998
+[base/probe] 정답 0/2 | 평균 loss=9.7420
+[base/diagnostic] 정답 0/4 | 평균 loss=10.5820
+[sft/train/1] correct | 정답=failed | 생성='failed' | loss=0.0138
+[sft/train/2] correct | 정답=healthy | 생성='healthy' | loss=0.0138
+[sft/probe/3] correct | 정답=failed | 생성='failed' | loss=0.2292
+[sft/probe/4] correct | 정답=healthy | 생성='healthy' | loss=0.1066
+[sft/diagnostic/5] correct | 정답=failed | 생성='failed' | loss=0.5903
+[sft/diagnostic/6] correct | 정답=healthy | 생성='healthy' | loss=0.0215
+[sft/diagnostic/7] correct | 정답=failed | 생성='failed' | loss=0.3245
+[sft/diagnostic/8] wrong_label | 정답=healthy | 생성='failed' | loss=1.1236
+[sft/train] 정답 2/2 | 평균 loss=0.0138
+[sft/probe] 정답 2/2 | 평균 loss=0.1679
+[sft/diagnostic] 정답 3/4 | 평균 loss=0.5150
+[lora/train/1] other | 정답=failed | 생성='Device GPU status: 0\n\n' | loss=11.8943
+[lora/train/2] other | 정답=healthy | 생성='Device network status: Disconnected' | loss=8.2563
+[lora/probe/3] other | 정답=failed | 생성="The GPU status is currently '0'." | loss=8.6117
+[lora/probe/4] other | 정답=healthy | 생성='The network status is currently stable and functioning' | loss=6.0968
+[lora/diagnostic/5] other | 정답=failed | 생성='GPU status:\n\nGPU status:' | loss=14.1535
+[lora/diagnostic/6] other | 정답=healthy | 생성='Network status: Unavailable' | loss=7.7694
+[lora/diagnostic/7] extra_text | 정답=failed | 생성='The GPU status is "failed".' | loss=6.1346
+[lora/diagnostic/8] other | 정답=healthy | 생성='Network status: "Network Status: Status' | loss=5.3541
+[lora/train] 정답 0/2 | 평균 loss=10.0753
+[lora/probe] 정답 0/2 | 평균 loss=7.3542
+[lora/diagnostic] 정답 0/4 | 평균 loss=8.3529
+평가 저장: ../smollm2_evaluation_v1.json | 체크포인트 저장·수정 없음
+```
+
+</details>
+
+- **SFT의 추가 진단은3/4, 75%입니다.** 마지막 `Report the network status in one word.`에서 정답 healthy 대신 failed를 생성했습니다. 학습 질문·기존 probe를 모두 맞혀도 표현 변경에서 다른 라벨을 고를 수 있음을 보여줍니다. 로그만으로 그 내부 원인을 확정할 수는 없습니다.
+- **LoRA는 세 그룹의 평균 loss가 모두 원본보다 낮지만 완전 일치 정답 수는 그대로0입니다.** 정답에 주는 점수 개선과 실제 생성 성공을 분리해서 읽습니다. 이번 설정의 결과이지 LoRA 방식 전체의 한계가 아닙니다.
+- 원본과 LoRA의7번 응답 `The GPU status is "failed".`에는 정답 단어가 있지만, 한 단어 응답 기준을 어겨 extra_text 오답입니다. SFT의8번은 단어 형식은 맞지만 상태가 틀린 wrong_label입니다.
+- JSON 저장 완료는 실행 로그로 확인한 범위입니다. 이 로그는 별도의 JSON 파일 내용 검사·실행 속도·GPU 메모리·독립 최종 평가의 증거는 아닙니다.
 
 ## 6. 출력 읽기와 오류 분석
 
