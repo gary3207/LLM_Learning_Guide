@@ -548,6 +548,133 @@ status: Q=[2.0, 1.0]
 - [ ] 비중은 토큰을 참고하는 비율이며 다음 토큰의 어휘 확률이 아님을 구분한다.
 - [ ] mask가 없어서 뒤 토큰도 참고한다는 한계를 설명한다.
 
-다음 연결 주제는 causal mask로 뒤 위치를 참고하지 못하게 제한하는 계산입니다. 현재 실습에서는 구현하지 않습니다.
+다음 절에서는 causal mask로 뒤 위치를 참고하지 못하게 제한하는 계산을 연결합니다.
+
+## 10. 후속 실습 · causal mask로 뒤 토큰 가리기
+
+### 목표와 개념
+
+9절에서는 모든 위치가 모든 토큰을 참고했습니다. 이번에는 **입력 X·변환 행렬·QKV는 그대로 두고**, 위치별로 참고할 수 있는 범위만 제한합니다. 자신의 위치와 앞 위치는 허용하고, 뒤 위치는 차단합니다.
+
+| Q 위치 | gpu의 K·V | current의 K·V | status의 K·V |
+|---|---|---|---|
+| gpu | 허용 | 차단 | 차단 |
+| current | 허용 | 허용 | 차단 |
+| status | 허용 | 허용 | 허용 |
+
+다음 토큰을 예측하는 모델을 여러 위치에서 학습할 때는 뒤에 있는 정답 토큰을 미리 참고하면 안 됩니다. causal mask는 이 방향의 정보 유출을 막는 장치입니다. **현재 위치는 허용**합니다. 현재 입력 토큰을 보고 그 다음 토큰을 예측하는 것이므로, 정답을 입력 위치보다 한 칸 뒤로 맞추는 작업과 mask는 구분해야 합니다. 이번에는 정답·loss·학습을 연결하지 않고 mask의 산술 계산만 확인합니다.
+
+근거: *Attention Is All You Need*, §3.2.3, arXiv:1706.03762. 논문처럼 softmax **전**에 허용되지 않은 점수를 `-∞`로 바꿉니다. 코드의 `float("-inf")`가 음의 무한대입니다. 지수 계산에서 이 항목은 0이 되므로 최종 비중도 0입니다. 점수를 단순히 0으로 바꾸면 `exp(0)=1`이어서 차단되지 않습니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source`의 가상환경에서 실행합니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 `PY`까지의 코드 실행입니다. Python 3.10 이상과 표준 라이브러리만 사용하며 이전 변수·저장 소스·모델 파일이 필요하지 않습니다. 파일을 읽거나 쓰지 않고 학습도 하지 않습니다.
+
+**소스:** [06-causal-mask.py](source/08-attention/06-causal-mask.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, sqrt
+
+# 앞 실습과 같은 교육용 입력·계수입니다. 학습된 값이 아닙니다.
+tokens = ["gpu", "current", "status"]
+inputs = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+wq = [[1.0, 0.0], [1.0, 1.0]]
+wk = [[0.0, 1.0], [1.0, 0.0]]
+wv = [[2.0, 0.0], [0.0, 3.0]]
+
+
+def project(x, matrix):
+    # ponytail: 2차원 행벡터 전용; 차원 확장은 PyTorch 행렬곱으로 전환합니다.
+    return [x[0] * matrix[0][column] + x[1] * matrix[1][column]
+            for column in range(2)]
+
+
+queries = [project(x, wq) for x in inputs]
+keys = [project(x, wk) for x in inputs]
+values = [project(x, wv) for x in inputs]
+assert queries == [[1.0, 0.0], [1.0, 1.0], [2.0, 1.0]]
+assert keys == [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+assert values == [[2.0, 0.0], [0.0, 3.0], [2.0, 3.0]]
+# 앞쪽 토큰만으로 별도 계산한 검사 기준입니다. 출력 계산에는 사용하지 않습니다.
+expected_weights = [[1.0, 0.0, 0.0], [0.5, 0.5, 0.0],
+                    [0.140029245043378, 0.28399540974126, 0.575975345215362]]
+expected_outputs = [[2.0, 0.0], [1.0, 1.5], [1.43200918051748, 2.579912264869866]]
+print("참고할 토큰 순서:", tokens)
+for position, (token, query) in enumerate(zip(tokens, queries, strict=True)):
+    scores = [sum(q * k for q, k in zip(query, key, strict=True)) for key in keys]
+    scaled = [score / sqrt(len(query)) for score in scores]
+    masked = [score if key_position <= position else float("-inf")
+              for key_position, score in enumerate(scaled)]
+    exps = [exp(score - max(masked)) for score in masked]
+    weights = [number / sum(exps) for number in exps]
+    assert isclose(sum(weights), 1.0)
+    assert all(weight == 0.0 for weight in weights[position + 1:])
+    assert all(weight > 0.0 for weight in weights[:position + 1])
+    assert all(isclose(a, b, abs_tol=1e-12)
+               for a, b in zip(weights, expected_weights[position], strict=True))
+    output = [sum(weight * value[column] for weight, value in zip(weights, values, strict=True))
+              for column in range(len(values[0]))]
+    assert all(isclose(a, b, abs_tol=1e-12)
+               for a, b in zip(output, expected_outputs[position], strict=True))
+    print(f"{token}: 허용={tokens[:position + 1]}")
+    print("  mask 적용 점수:", [round(number, 4) for number in masked])
+    print("  비중:", [round(number, 4) for number in weights])
+    print("  출력 벡터:", [round(number, 4) for number in output])
+print("검사 통과: 각 위치는 자신과 앞 토큰만 참고하고 뒤 토큰의 비중은 0입니다")
+PY
+```
+
+### 코드 해설
+
+- `enumerate`는 0부터 시작하는 위치 번호와 항목을 함께 줍니다. `position`은 Q의 위치이고 `key_position`은 비교하는 K의 위치입니다.
+- `key_position <= position`이면 자신 또는 앞 토큰입니다. 이때 기존 점수를 유지하고, 뒤 토큰의 점수만 `-inf`로 바꿉니다. Q·K·V 자체는 바꾸지 않습니다.
+- `exps`와 `weights`는 mask가 적용된 점수로 계산합니다. 최댓값을 빼는 안정화 방식은 이전 실습과 같습니다. 이 예제는 자기 위치를 항상 허용하므로 한 행 전체가 차단되지는 않습니다.
+- `weights[position + 1:]`는 뒤 토큰들의 비중입니다. 이들이 정확히 0인지 검사합니다. 허용 범위의 양수 비중 검사도 포함하며, 앞 실습의 “모든 비중이 양수” 검사를 그대로 쓰지 않습니다.
+- 비중은 여전히 세 개이고 합은 1입니다. 차단 항목은 0이지만 위치를 삭제하지 않습니다. Value 가중합 방식과 출력 차원도 그대로입니다.
+- `expected_weights`, `expected_outputs`는 허용된 앞쪽 토큰만으로 별도 계산한 검사 기준입니다. 출력 계산이나 학습 목표로 사용하지 않습니다.
+
+### 로컬 산술 실행 예시와 비교
+
+아래는 정본 코드를 Python으로 실행하여 assert를 통과한 결과입니다. 파라미터 학습이나 모델의 단어 예측 결과가 아닙니다.
+
+```text
+참고할 토큰 순서: ['gpu', 'current', 'status']
+gpu: 허용=['gpu']
+  mask 적용 점수: [0.0, -inf, -inf]
+  비중: [1.0, 0.0, 0.0]
+  출력 벡터: [2.0, 0.0]
+current: 허용=['gpu', 'current']
+  mask 적용 점수: [0.7071, 0.7071, -inf]
+  비중: [0.5, 0.5, 0.0]
+  출력 벡터: [1.0, 1.5]
+status: 허용=['gpu', 'current', 'status']
+  mask 적용 점수: [0.7071, 1.4142, 2.1213]
+  비중: [0.14, 0.284, 0.576]
+  출력 벡터: [1.432, 2.5799]
+검사 통과: 각 위치는 자신과 앞 토큰만 참고하고 뒤 토큰의 비중은 0입니다
+```
+
+| 위치 | mask 없는 9절 출력 | causal mask 적용 출력 | 이유 |
+|---|---|---|---|
+| gpu | `[1.1978, 2.4067]` | `[2.0, 0.0]` | 자기 V만 참고 |
+| current | `[1.5035, 2.2552]` | `[1.0, 1.5]` | gpu·current의 허용 점수가 같아 반씩 혼합 |
+| status | `[1.432, 2.5799]` | `[1.432, 2.5799]` | 마지막 위치이므로 가릴 뒤 토큰 없음 |
+
+이 비교에서 바꾼 것은 **참고 허용 범위뿐**입니다. 마지막 위치의 출력이 같은 것은 mask가 동작하지 않아서가 아니라, 그 위치에서 차단할 항목이 없기 때문입니다.
+
+### 한계와 복습
+
+- [ ] 자기 위치까지 허용하는 이유를 설명한다.
+- [ ] 차단 점수를 0이 아니라 `-inf`로 바꾸는 이유를 설명한다.
+- [ ] 차단된 위치를 포함한 비중 세 개의 합이 1임을 구분한다.
+- [ ] `status`의 출력이 앞 실습과 같은 이유를 설명한다.
+- [ ] mask만 추가한 계산과 학습된 문장 생성기를 구분한다.
+
+이것은 고정된 교육용 입력의 단일 Attention 계산입니다. padding mask·batch·여러 head·출력 투영·위치 표현·학습은 구현하지 않습니다. 토큰 내용이 아니라 위치 번호로 허용 범위를 정하며, 위치 표현 자체를 벡터에 더하는 실습과는 다릅니다. 후속 주제로 위치 정보의 역할을 연결할 수 있습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
