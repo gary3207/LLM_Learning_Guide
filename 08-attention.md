@@ -1195,4 +1195,118 @@ healthy: 확률=0.7881, 기울기=+0.7881, 수치검사=+0.7881
 
 이번에는 **출력 점수에 대한 기울기만** 계산합니다. 자동 미분·출력 행렬과 Attention 파라미터로의 역전파·optimizer·가중치 갱신·저장은 구현하지 않습니다. 다음에는 이 기울기를 출력 행렬의 기울기로 연결할 수 있습니다. 점수는 모델의 중간 결과이며, 일반적인 학습에서 optimizer가 직접 갱신하는 대상은 파라미터입니다.
 
+## 16. 후속 실습 · 출력 행렬 가중치의 기울기
+
+### 목표와 차원
+
+15절에서는 출력 점수 세 개의 기울기를 구했습니다. 이번에는 **13절의 정보 벡터와 출력 행렬을 그대로 가져와**, 출력 행렬 가중치 여섯 개의 기울기를 계산합니다. 정답은 앞과 같은 교육용 `failed`입니다. 정보 벡터는 고정하며 Attention 전체를 재계산하거나 그 파라미터까지 역전파하지 않습니다.
+
+```text
+행벡터 hidden (1×2) × w_vocab (2×3) → logits (1×3), bias 없음
+loss → d_logits (1×3)
+d_weights[r,c] = hidden[r] × d_logits[c] → 2×3
+```
+
+`logits[c] = hidden[0]×W[0,c] + hidden[1]×W[1,c]`이므로 `W[r,c]`를 조금 바꿀 때 해당 점수의 변화율은 `hidden[r]`입니다. **연쇄법칙**으로 여기에 그 점수의 loss 기울기를 곱합니다. 이 행벡터 규약에서는 `dW = hidden의 전치 × d_logits`이며, 결과는 원래 가중치와 같은 `2×3`입니다. 근거: Stanford CS231n *Backpropagation, Intuitions*의 matrix-matrix multiply gradient와 chain rule 설명. 교재의 곱셈 순서에 맞게 전치 방향을 구분합니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source`에서 실행합니다. Python 3.10 이상과 표준 라이브러리만 필요합니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지 실행입니다. 앞 실습 변수·파일 없이 실행되며 설치·GPU·파일 읽기·쓰기·가중치 갱신은 없습니다.
+
+**소스:** [12-output-weight-gradient.py](source/08-attention/12-output-weight-gradient.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, isfinite, log
+
+# 앞 출력층의 정보 벡터·행렬·어휘와 교육용 정답을 유지합니다.
+hidden = [1.61332902229994, 5.931436569567589]
+vocabulary = ["failed", "healthy", "<eos>"]
+w_vocab = [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0]]  # 2×3, bias 없음
+original = [row[:] for row in w_vocab]
+target = "failed"
+assert target in vocabulary
+target_index = vocabulary.index(target)
+assert len(w_vocab) == len(hidden)
+assert all(len(row) == len(vocabulary) for row in w_vocab)
+assert all(isfinite(x) for x in hidden + [w for row in w_vocab for w in row])
+
+
+def scores_at(matrix):
+    return [sum(x * row[column] for x, row in zip(hidden, matrix, strict=True))
+            for column in range(len(vocabulary))]
+
+
+def loss_at(matrix):
+    # ponytail: 고정 hidden·한 위치 전용; 전체 모델 자동 미분은 PyTorch로 전환합니다.
+    scores = scores_at(matrix)
+    maximum = max(scores)
+    return log(sum(exp(z - maximum) for z in scores)) - (scores[target_index] - maximum)
+
+
+logits = scores_at(w_vocab)
+exps = [exp(z - max(logits)) for z in logits]
+probabilities = [value / sum(exps) for value in exps]
+d_logits = [p - (1.0 if index == target_index else 0.0)
+            for index, p in enumerate(probabilities)]
+# 각 가중치의 기울기 = 해당 입력 좌표 × 해당 출력 점수의 기울기
+# 행은 hidden 좌표, 열은 failed·healthy·<eos>입니다.
+d_weights = [[x * gradient for gradient in d_logits] for x in hidden]
+assert isclose(loss_at(w_vocab), 1.5905288315131196, rel_tol=0.0, abs_tol=1e-12)
+assert len(d_weights) == 2 and all(len(row) == 3 for row in d_weights)
+print("교육용 정답 토큰:", target)
+print(f"기준 loss: {loss_at(w_vocab):.4f}")
+epsilon = 1e-5
+for row_index, row in enumerate(d_weights):
+    for column, (token, gradient) in enumerate(zip(vocabulary, row, strict=True)):
+        plus = [values[:] for values in w_vocab]
+        minus = [values[:] for values in w_vocab]
+        plus[row_index][column] += epsilon
+        minus[row_index][column] -= epsilon
+        numerical = (loss_at(plus) - loss_at(minus)) / (2.0 * epsilon)
+        assert isclose(gradient, numerical, rel_tol=0.0, abs_tol=1e-8)
+        print(f"W[{row_index},{column}] → {token}: 기울기={gradient:+.4f}, 수치검사={numerical:+.4f}")
+assert w_vocab == original
+print("검사 통과: 출력 행렬 가중치 6개의 기울기가 수치검사와 일치합니다. 가중치는 갱신하지 않았습니다")
+PY
+```
+
+### 코드와 연쇄법칙 해설
+
+- `scores_at`은 13절의 `hidden × w_vocab` 계산을 재사용합니다. 예전 2×2 QKV 전용 함수를 사용하지 않습니다. `loss_at`은 행렬에서 점수·정답 loss까지 계산하므로, 가중치를 움직였을 때 loss 변화도 검사할 수 있습니다.
+- `d_logits`는 앞 실습의 `확률 - 정답 표시`입니다. `d_weights`는 입력 좌표마다 그 기울기 세 개를 곱합니다. `d_`는 미분값을 나타내기 위한 이름이며 수정된 가중치가 아닙니다.
+- `W[0,0]`은 첫 입력 좌표에서 `failed` 점수로 가는 계수입니다. 그 기울기는 `hidden[0] × d_logits[0]`입니다. `W[1,0]`은 두 번째 입력 좌표에서 같은 점수로 가므로 `hidden[1]`을 곱합니다. 행 번호·열 번호는 0부터 시작합니다.
+- 이 예제에서는 두 입력 좌표가 모두 양수라 같은 열의 기울기 부호도 같습니다. 이는 일반 규칙이 아닙니다. 입력이 음수면 부호가 뒤집히고, 0이면 해당 곱은 0입니다. 입력의 의미나 가중치의 중요도를 이 숫자만으로 판단하지 않습니다.
+- `plus`·`minus`는 **행마다 복사한 별도 행렬**입니다. 가중치 하나만 앞뒤로 움직이고 나머지 가중치·hidden·정답을 고정해 중앙차분을 계산합니다. 원본 행렬의 바깥 리스트만 복사하면 내부 행을 공유할 수 있으므로 `row[:]`도 사용합니다.
+- `epsilon`은 검사 간격이지 학습률이 아닙니다. 복사본을 바꾸는 것은 수치검사용이며 optimizer 갱신이 아닙니다. 마지막 assert는 원래 `w_vocab`이 그대로인지 확인합니다.
+
+### 로컬 산술 실행 예시
+
+정본 소스를 로컬 Python으로 실행해 여섯 중앙차분·assert를 통과한 출력입니다. 마지막 자리에는 환경별 부동소수점 차이가 있을 수 있습니다.
+
+```text
+교육용 정답 토큰: failed
+기준 loss: 1.5905
+W[0,0] → failed: 기울기=-1.2845, 수치검사=-1.2845
+W[0,1] → healthy: 기울기=+1.2715, 수치검사=+1.2715
+W[0,2] → <eos>: 기울기=+0.0131, 수치검사=+0.0131
+W[1,0] → failed: 기울기=-4.7225, 수치검사=-4.7225
+W[1,1] → healthy: 기울기=+4.6745, 수치검사=+4.6745
+W[1,2] → <eos>: 기울기=+0.0480, 수치검사=+0.0480
+검사 통과: 출력 행렬 가중치 6개의 기울기가 수치검사와 일치합니다. 가중치는 갱신하지 않았습니다
+```
+
+### 한계·복습과 다음 연결
+
+- [ ] 점수 기울기는 세 개인데 가중치 기울기는 여섯 개인 이유를 설명한다.
+- [ ] `d_weights[1][0]`에 어떤 입력 좌표와 점수 기울기가 곱해지는지 설명한다.
+- [ ] 기울기의 크기를 가중치 자체의 크기나 중요도와 혼동하지 않는다.
+- [ ] 검사할 복사본 변경과 원본 가중치 갱신을 구분한다.
+
+이번에는 출력 행렬까지 연쇄법칙을 적용했습니다. hidden에 대한 기울기·Attention 파라미터의 기울기·자동 미분·학습률·optimizer·가중치 갱신·저장은 구현하지 않습니다. 다음에는 이 가중치 기울기를 사용해 출력 행렬을 한 번 갱신하는 계산으로 연결할 수 있습니다.
+
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
