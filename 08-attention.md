@@ -1003,4 +1003,97 @@ healthy: 점수=2.9657, 확률=0.7881
 
 이번에는 마지막 위치 하나의 출력층만 계산합니다. 정답·loss·역전파·파라미터 수정·모델 저장·반복 생성은 없습니다. 다음에는 정답 토큰과 이 확률을 비교해 loss를 계산하는 과정을 연결할 수 있습니다.
 
+## 14. 후속 실습 · 정답 확률에서 loss 계산하기
+
+### 목표와 개념
+
+13절은 최대 확률 후보가 `healthy`임을 확인했습니다. 하지만 **예측 후보와 정답은 다릅니다.** 정답은 argmax가 아니라 데이터가 제공합니다. 이번에는 앞 절의 반올림 전 확률을 가져와, 설명을 위해 정답을 `failed`로 정합니다. 실제 GPU 상태의 정답을 판정하는 실험은 아닙니다.
+
+하나의 정답 토큰을 갖는 한 위치에서, 클래스 가중치·label smoothing이 없는 cross-entropy는 **`loss = -ln(정답 토큰의 확률)`**입니다. `ln`은 자연로그입니다. 세 확률을 모두 더하거나, 최대 확률을 무조건 골라 loss를 계산하지 않습니다.
+
+```text
+고정 어휘 확률 + 데이터의 정답 (여기서는 failed로 가정)
+          ↓ 정답 인덱스로 확률 하나 선택
+정답 확률 → 음의 자연로그 → 한 위치의 loss (숫자 하나)
+```
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source`에서 실행합니다. Python 3.10 이상과 표준 라이브러리만 필요합니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지 코드 실행입니다. 앞 실습 변수·파일은 필요하지 않으며 GPU·설치·파일 읽기·쓰기·학습은 없습니다.
+
+**소스:** [10-target-loss.py](source/08-attention/10-target-loss.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import isclose, isfinite, log
+
+# 앞 출력층의 반올림 전 확률을 고정 입력으로 가져옵니다. 재계산하지 않습니다.
+vocabulary = ["failed", "healthy", "<eos>"]
+probabilities = [0.20381779795457093, 0.7880926900858558, 0.008089511959573232]
+# ponytail: 세 후보·한 위치 전용 산술; 실제 학습에서는 logits와 CrossEntropyLoss를 사용합니다.
+assert vocabulary == ["failed", "healthy", "<eos>"]
+assert len(probabilities) == len(vocabulary)
+assert all(isfinite(p) and 0.0 < p <= 1.0 for p in probabilities)
+assert isclose(sum(probabilities), 1.0, rel_tol=0.0, abs_tol=1e-12)
+# 정답은 argmax가 아니라 데이터가 제공합니다. 여기서는 설명을 위해 failed로 정합니다.
+target = "failed"
+assert target in vocabulary
+target_index = vocabulary.index(target)
+target_probability = probabilities[target_index]
+loss = -log(target_probability)
+assert isclose(loss, 1.5905288315131196, rel_tol=0.0, abs_tol=1e-12)
+assert isclose(-log(1.0), 0.0, abs_tol=1e-12)
+assert -log(0.8) < -log(0.2)
+print("교육용 정답 토큰:", target)
+print(f"정답에 부여한 확률: {target_probability:.4f}")
+print(f"한 위치의 loss = -ln(정답 확률): {loss:.4f}")
+print("같은 분포에서 정답만 달리 가정한 비교 (학습 전후 아님):")
+# 독립 Decimal 계산 기준이며 loss 계산에 사용하지 않습니다.
+expected_losses = [1.5905288315131196, 0.23813956902926515, 4.817186876113]
+for token, probability, expected in zip(vocabulary, probabilities, expected_losses, strict=True):
+    candidate_loss = -log(probability)
+    assert isclose(candidate_loss, expected, rel_tol=0.0, abs_tol=1e-12)
+    print(f"  정답={token}: 확률={probability:.4f}, loss={candidate_loss:.4f}")
+print("검사 통과: 정답 확률에서 loss를 계산했습니다. 역전파·가중치 수정은 하지 않았습니다")
+PY
+```
+
+### 코드와 계산 해설
+
+- `vocabulary`와 `probabilities`는 같은 순서로 대응합니다. `target_index`는 정답 문자열의 위치, `target_probability`는 그 위치의 확률입니다. 출력은 숫자 하나의 loss입니다.
+- `log(x)`는 Python의 자연로그입니다. 정답 확률이 작을수록 `-log(p)`가 커집니다. 확률이 1이면 손실은 0입니다. loss는 확률이 아니므로 1보다 클 수 있습니다.
+- 표시용 `0.2038`이 아니라 반올림 전 확률로 계산합니다. `isfinite`·범위·합 검사는 이 고정 분포를 확인하며, 0을 임의의 작은 숫자로 바꿔 오류를 숨기지 않습니다.
+- `expected_losses`는 독립 고정밀 Decimal 계산의 검사 기준입니다. loss 입력이나 학습 정답이 아닙니다. 이 예시 전용 assert를 다른 정답 실험에 그대로 적용하지 않습니다.
+- 마지막 반복문은 **동일한 분포에서 정답만 바꿔 가정한 세 경우**입니다. 세 학습 샘플이나 학습 전후의 loss 감소가 아닙니다. 실제 데이터의 정답을 손실이 작아지도록 바꾸면 안 됩니다.
+
+앞 모델에서 사용한 PyTorch `nn.CrossEntropyLoss`에는 **softmax 전 logits와 정답 클래스 인덱스**를 넣습니다. 확률을 직접 꺼내 로그를 계산하는 이번 코드는 원리를 보기 위한 분리 실습입니다. 실제 학습에서는 안정적인 log-softmax 기반 계산을 사용하며 softmax를 한 번 더 붙여 넣지 않습니다. 근거: PyTorch 공식 `CrossEntropyLoss` 문서의 클래스 인덱스 정답 수식과 `LogSoftmax`·`NLLLoss` 동치 설명.
+
+### 로컬 산술 실행 예시
+
+정본 소스를 로컬 Python으로 실행해 assert를 통과한 출력입니다. 학습 결과가 아닙니다.
+
+```text
+교육용 정답 토큰: failed
+정답에 부여한 확률: 0.2038
+한 위치의 loss = -ln(정답 확률): 1.5905
+같은 분포에서 정답만 달리 가정한 비교 (학습 전후 아님):
+  정답=failed: 확률=0.2038, loss=1.5905
+  정답=healthy: 확률=0.7881, loss=0.2381
+  정답=<eos>: 확률=0.0081, loss=4.8172
+검사 통과: 정답 확률에서 loss를 계산했습니다. 역전파·가중치 수정은 하지 않았습니다
+```
+
+### 한계·복습과 다음 연결
+
+- [ ] 최대 확률 후보와 데이터의 정답을 구분한다.
+- [ ] 같은 분포에서도 정답에 따라 loss가 다른 이유를 설명한다.
+- [ ] 정답 확률이 커질수록 loss가 작아짐을 설명한다.
+- [ ] loss 계산과 역전파·가중치 갱신을 구분한다.
+
+이번에는 고정 확률에서 한 위치의 손실만 계산합니다. 전체 문장·batch 평균, padding 제외, label smoothing, 기울기·파라미터 갱신·모델 저장·반복 생성은 구현하지 않습니다. 다음에는 loss에서 출력 점수의 기울기로 연결할 수 있습니다.
+
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)

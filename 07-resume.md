@@ -95,7 +95,7 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)에서 펼치기와 가중합을 비교한 뒤, 교육용 QKV·causal mask·위치 표현을 연결합니다. 이어서 마지막 Attention 정보 벡터를 고정 입력으로 가져와 직접 정한 출력 행렬로 어휘 점수·확률을 계산하고 가장 큰 후보를 확인합니다. 학습·저장·반복 생성 없이 Python 표준 라이브러리만 사용합니다. Attention 예제의 loss·변환 계수 실제 학습과 Transformer 구현은 후속 범위입니다.
+[08장 Attention 입문](08-attention.md)에서 펼치기와 가중합을 비교한 뒤, 교육용 QKV·causal mask·위치 표현을 연결합니다. 이어서 마지막 Attention 정보 벡터를 고정 입력으로 가져와 직접 정한 출력 행렬로 어휘 점수·확률을 계산하고 가장 큰 후보를 확인합니다. 다음으로 고정된 확률과 교육용 정답을 비교해 한 위치의 loss를 계산합니다. 학습·저장·반복 생성 없이 Python 표준 라이브러리만 사용합니다. Attention 예제의 역전파·변환 계수 실제 학습과 Transformer 구현은 후속 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 
