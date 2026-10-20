@@ -1,6 +1,6 @@
 # 22 · 서빙 성능: 응답 지연·생성 속도·GPU 메모리
 
-[← 이전: HTTP API](21-api-serving.md) · [목차](README.md)
+[← 이전: HTTP API](21-api-serving.md) · [목차](README.md) · [다음: 버전 등록·선택 →](23-model-registry.md)
 
 ## 1. 이번에 완성할 결과물
 

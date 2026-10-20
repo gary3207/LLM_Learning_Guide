@@ -26,6 +26,7 @@
 !/20-qlora.md
 !/21-api-serving.md
 !/22-serving-benchmark.md
+!/23-model-registry.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -45,6 +46,7 @@
 !/source/19-model-evaluation/
 !/source/20-qlora/
 !/source/21-api-serving/
+!/source/23-model-registry/
 !/source/check_guide.py
 __pycache__/
 *.pyc
