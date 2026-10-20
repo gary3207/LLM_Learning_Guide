@@ -21,6 +21,7 @@
 !/15-finish-tiny-model.md
 !/16-pretrained-inference.md
 !/17-sft-compare.md
+!/18-lora-gpu.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -36,6 +37,7 @@
 !/source/09-transformer/
 !/source/16-pretrained/
 !/source/17-sft/
+!/source/18-lora/
 !/source/check_guide.py
 __pycache__/
 *.pyc

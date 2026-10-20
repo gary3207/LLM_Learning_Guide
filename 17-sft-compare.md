@@ -1,6 +1,6 @@
 # 17 · 작은 데이터로 SFT: 기본 모델 비교부터 저장·복원까지
 
-[← 이전: 사전학습 LLM 추론](16-pretrained-inference.md) · [목차](README.md)
+[← 이전: 사전학습 LLM 추론](16-pretrained-inference.md) · [목차](README.md) · [다음: GPU·LoRA →](18-lora-gpu.md)
 
 ## 1. 완성할 결과물과 개념
 
@@ -220,4 +220,4 @@ python source/17-sft/test_sft.py
 - [Transformers 4.57.1 LlamaForCausalLM](https://huggingface.co/docs/transformers/v4.57.1/en/model_doc/llama)
 - [Transformers 4.57.1 대화 템플릿](https://huggingface.co/docs/transformers/v4.57.1/en/chat_templating)
 
-[← 이전: 사전학습 LLM 추론](16-pretrained-inference.md) · [목차](README.md)
+[← 이전: 사전학습 LLM 추론](16-pretrained-inference.md) · [목차](README.md) · [다음: GPU·LoRA →](18-lora-gpu.md)
