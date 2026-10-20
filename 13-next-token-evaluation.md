@@ -1,6 +1,6 @@
 # 13 · 정답이 있는 다음 토큰 평가
 
-[← 이전: 새 입력 관찰](12-input-probes.md) · [목차](README.md)
+[← 이전: 새 입력 관찰](12-input-probes.md) · [목차](README.md) · [다음: 학습 표현 보완 →](14-data-comparison.md)
 
 ## 1. 목표와 평가 과제
 
@@ -164,7 +164,7 @@ python source/09-transformer/test_evaluation.py
 - 이번에는 후보 모델 하나가 고정되어 validation으로 모델을 선택하지 않습니다. 여러 모델 선택 절차의 완료를 주장하지 않습니다.
 - 테스트 결과를 보고 보완하는 순간 이후의 비교는 개발 데이터 비교입니다. 독립 최종 평가용 입력은 따로 준비합니다.
 - perplexity·자동 평가 프레임워크·배포 기준·데이터 보완·재학습은 추가하지 않습니다.
-- 후속 실습에서는 테스트 점수만 올리기보다 학습 데이터의 표현 범위를 바꾼 모델을 같은 개발 기준으로 비교하고, 별도 최종 평가를 남기는 방법을 다룰 수 있습니다.
+- [14장](14-data-comparison.md)에서는 학습 표현을 보완한 복사본과 대조군을 같은 개발 기준으로 비교합니다. 새 독립 최종 평가는 여전히 후속 범위입니다.
 
 ## 8. 복습
 
@@ -176,4 +176,4 @@ python source/09-transformer/test_evaluation.py
 - [ ] 문자열 중복 없음이 독립 테스트의 충분조건이 아님을 설명한다.
 - [ ] validation 진단과 모델 선택, test 이후 보완과 독립 평가를 구분한다.
 
-[← 이전: 새 입력 관찰](12-input-probes.md) · [목차](README.md)
+[← 이전: 새 입력 관찰](12-input-probes.md) · [목차](README.md) · [다음: 학습 표현 보완 →](14-data-comparison.md)
