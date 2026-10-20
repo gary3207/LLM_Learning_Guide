@@ -20,6 +20,7 @@
 !/14-data-comparison.md
 !/15-finish-tiny-model.md
 !/16-pretrained-inference.md
+!/17-sft-compare.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -34,6 +35,7 @@
 !/source/08-attention/
 !/source/09-transformer/
 !/source/16-pretrained/
+!/source/17-sft/
 !/source/check_guide.py
 __pycache__/
 *.pyc

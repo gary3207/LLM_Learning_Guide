@@ -1,6 +1,6 @@
 # 16 · 사전학습 LLM 불러오기: 토큰화부터 응답 생성까지
 
-[← 이전: 작은 모델 마무리](15-finish-tiny-model.md) · [목차](README.md)
+[← 이전: 작은 모델 마무리](15-finish-tiny-model.md) · [목차](README.md) · [다음: 작은 SFT →](17-sft-compare.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -157,7 +157,7 @@ python source/16-pretrained/test_pretrained.py
 - [ ] eos 종료와 생성 길이 상한을 구분한다.
 - [ ] 응답 생성 성공을 사실성 평가 통과로 해석하지 않는다.
 
-다음 큰 묶음은 작은 데이터로 사전학습 모델을 추가 학습하고 기본 모델과 같은 기준으로 비교하는 실습입니다. 이번에는 SFT·LoRA·RAG·서빙을 설치하거나 실행하지 않습니다.
+다음 [17장](17-sft-compare.md)은 작은 데이터로 사전학습 모델을 추가 학습하고 기본 모델과 같은 기준으로 비교한 뒤 별도 저장·복원합니다. 이 16장에서는 SFT·LoRA·RAG·서빙을 설치하거나 실행하지 않습니다.
 
 ## 공식 참고자료
 
@@ -165,4 +165,4 @@ python source/16-pretrained/test_pretrained.py
 - [Transformers 4.57.1 대화 템플릿](https://huggingface.co/docs/transformers/v4.57.1/en/chat_templating)
 - [Transformers 4.57.1 생성 설정](https://huggingface.co/docs/transformers/v4.57.1/en/main_classes/text_generation)
 
-[← 이전: 작은 모델 마무리](15-finish-tiny-model.md) · [목차](README.md)
+[← 이전: 작은 모델 마무리](15-finish-tiny-model.md) · [목차](README.md) · [다음: 작은 SFT →](17-sft-compare.md)

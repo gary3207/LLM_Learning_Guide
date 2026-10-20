@@ -1,5 +1,11 @@
 # 변경 내역
 
+## 2026-10-20 · 작은 데이터의 SFT·비교·저장·복원
+
+- 고정 SmolLM2에 두 합성 예제·응답/eos 전용 loss·전체 파라미터 SGD20회 추가 학습, 같은 기준의 train/probe loss·생성 비교 추가.
+- 실제 로컬 학습 후 failed/healthy 응답과 새 프로세스 전체 어휘 logits·생성 일치 확인. 원본 캐시와 기존 파일 보존·새 폴더 저장.
+- labels 실제값·캐시/후보 해시·재저장 거부·복원 기준 불일치 탐지 검사. 독립 최종 평가·넓은 생성 회귀·LoRA·서빙은 제외.
+
 ## 2026-10-20 · 사전학습 LLM 토큰화·응답 생성
 
 - SmolLM2-135M-Instruct의 고정 revision과 Transformers 4.57.1로 질문 토큰화·대화 형식·logits·CPU greedy 응답 생성 통합 실습 추가.

@@ -111,6 +111,8 @@ network current status -> {'healthy': 1}
 
 [16장 사전학습 모델 추론](16-pretrained-inference.md)은 SmolLM2-135M-Instruct·토크나이저·대화 템플릿·logits·greedy 응답 생성을 한 흐름으로 실행합니다. 기존 작은 모델 파일을 사용하지 않고 가중치를 갱신하지 않습니다. 응답 생성 성공과 사실성·운영 품질 평가를 구분합니다.
 
+[17장 작은 SFT](17-sft-compare.md)는 같은 모델 전체를 두 합성 예제로 추가 학습하고, 같은 질문·정답·생성 조건에서 전후를 비교합니다. 질문 labels의 -100 처리·내부 정답 이동·응답/eos loss와 별도 저장·새 프로세스 복원을 연결합니다. probe 두 질문의 성공은 넓은 일반화나 기존 생성 능력 유지의 증거가 아닙니다.
+
 - [ ] `encode` 규칙과 학습되는 가중치를 구분한다.
 - [ ] `zero_grad()`, `backward()`, `step()`의 역할을 설명한다.
 - [ ] `eval()`과 `no_grad()`를 구분한다.
