@@ -16,7 +16,7 @@
 | 05 | [다음 토큰 예측](05-next-token.md) | 입력·정답 쌍, 종료 토큰, 반복 생성 |
 | 06 | [문맥 길이 확장](06-context-window.md) | 입력 충돌, 두 토큰·세 토큰 모델의 학습·저장·복원·생성 |
 | 07 | [학습 점검과 다음 단계](07-resume.md) | 핵심 개념 복습, 파일·결과 점검, 확장 실험 설계 |
-| 08 | [Attention 입문](08-attention.md) | 가중합·QKV·causal mask, 위치 포함 입력에서 Attention 출력까지 |
+| 08 | [Attention 입문](08-attention.md) | QKV·causal mask·위치 표현, 정보 벡터에서 어휘 점수·확률까지 |
 
 각 장은 **목표 → 개념 → 실행 위치·방법 → 코드 → 해설 → 실행 예시·해석 → 복습** 순서로 구성합니다.
 
@@ -60,6 +60,6 @@
 
 ## 🌱 다루는 범위
 
-선형 분류기와 고정 길이 문맥 모델로 기초를 익힙니다. 이 모델들은 Transformer나 대화형 LLM이 아닙니다. 세 토큰 문맥은 빈도 비교와 학습·저장·복원·생성 코드를 다룹니다. Attention 입문은 교육용 Q·K·V로 비중 계산과 Value 가중합을 연결한 뒤, 직접 정한 선형 변환으로 입력에서 Q·K·V를 만들어 모든 위치의 Self-Attention 출력까지 계산합니다. 이어서 causal mask로 뒤 위치의 비중을 0으로 제한하고, 수동 위치 벡터를 더한 입력에서 QKV·causal Attention 출력까지 연결합니다. 어휘 출력층·변환 계수의 실제 학습, Transformer·RAG·LoRA·서빙·Kubernetes는 후속 주제로 구분합니다.
+선형 분류기와 고정 길이 문맥 모델로 기초를 익힙니다. 이 모델들은 Transformer나 대화형 LLM이 아닙니다. 세 토큰 문맥은 빈도 비교와 학습·저장·복원·생성 코드를 다룹니다. Attention 입문은 교육용 Q·K·V로 비중 계산과 Value 가중합을 연결한 뒤, 직접 정한 선형 변환으로 입력에서 Q·K·V를 만들어 모든 위치의 Self-Attention 출력까지 계산합니다. 이어서 causal mask와 수동 위치 벡터를 연결하고, 마지막 정보 벡터를 어휘 점수·확률로 바꾸는 산술 출력층을 다룹니다. Attention 예제의 loss·변환 계수 실제 학습, Transformer·RAG·LoRA·서빙·Kubernetes는 후속 주제로 구분합니다.
 
 [첫 단계 시작하기 →](00-roadmap.md)

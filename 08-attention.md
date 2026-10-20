@@ -897,6 +897,110 @@ PY
 - [ ] 위치 1의 세 번째 내적 점수는 6인데도 비중은 0인 이유를 설명한다.
 - [ ] 비중과 정보 벡터, 다음 토큰 확률을 구분한다.
 
-수동 위치 표·단일 head 산술 계산입니다. 출력 투영·잔차 연결·정규화·여러 head·loss·역전파·모델 저장은 구현하지 않습니다. 다음 연결 후보는 이 정보 벡터를 어휘별 점수로 바꾸는 출력층입니다. 현재 코드는 단어를 선택하거나 생성하지 않습니다.
+이 절은 수동 위치 표·단일 head 산술 계산입니다. Attention head의 출력 투영·잔차 연결·정규화·여러 head·loss·역전파·모델 저장은 구현하지 않습니다. 이 절의 코드는 단어를 선택하거나 생성하지 않으며, 다음 절에서 어휘 출력층을 별도로 연결합니다.
+
+## 13. 후속 실습 · 정보 벡터를 어휘 점수와 확률로 바꾸기
+
+### 목표와 개념
+
+앞 절의 마지막 위치 출력은 숫자 두 개의 정보 벡터였습니다. 이번에는 **그 벡터 하나를 고정 입력으로 가져와**, 어휘 후보마다 점수를 만들고 softmax로 확률을 계산합니다. Attention 전체를 재실행하거나 모델 파일에서 벡터를 읽지 않습니다.
+
+```text
+앞 절 위치 2의 Attention 정보 벡터 hidden (1×2)
+          ↓ 출력 행렬 w_vocab (2×3), bias 없음
+어휘 점수 logits (1×3): failed, healthy, <eos>
+          ↓ 어휘 축 softmax
+세 후보의 확률 → 가장 큰 확률의 후보 확인
+```
+
+`logits`는 softmax 전 점수이며 음수일 수도 있고 합이 1일 필요도 없습니다. softmax 뒤에는 세 확률의 합이 1입니다. 원래 Transformer의 선형 변환·softmax 출력 개념은 *Attention Is All You Need*, §3.4, arXiv:1706.03762를 참고합니다. 여기서는 완전한 decoder 출력 대신 앞 절의 Attention 정보 벡터에 **직접 정한 출력 행렬**을 적용하는 작은 산술 예제입니다. 학습된 모델이나 정답을 맞히는 실험이 아닙니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**의 기존 `~/llm-lab/source` 가상환경에서 실행합니다. Python 3.10 이상과 표준 라이브러리만 필요합니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지의 코드 실행입니다. 앞 실습의 변수·소스 파일이 없어도 실행되며 GPU·패키지 설치·파일 읽기·쓰기·학습은 없습니다.
+
+**소스:** [09-vocabulary-output.py](source/08-attention/09-vocabulary-output.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose
+
+# 앞 실습 위치 2의 반올림 전 Attention 출력입니다. 여기서는 재계산하지 않습니다.
+hidden = [1.61332902229994, 5.931436569567589]
+# 출력 후보만 담은 교육용 어휘입니다. 앞 입력 토큰 목록과 다릅니다.
+vocabulary = ["failed", "healthy", "<eos>"]
+# 행벡터 hidden (1×2) × 직접 정한 출력 행렬 (2×3); bias는 없습니다.
+# ponytail: 고정 교육용 계수; 학습된 모델의 예측 품질을 나타내지 않습니다.
+w_vocab = [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0]]
+assert len(w_vocab) == len(hidden)
+assert all(len(row) == len(vocabulary) for row in w_vocab)
+logits = [sum(value * row[column] for value, row in zip(hidden, w_vocab, strict=True))
+          for column in range(len(vocabulary))]
+exps = [exp(score - max(logits)) for score in logits]
+probabilities = [number / sum(exps) for number in exps]
+expected_logits = [1.61332902229994, 2.9657182847837945, -1.61332902229994]
+# 독립 Decimal 계산의 검사 기준이며 확률 계산에는 쓰지 않습니다.
+expected_probabilities = [0.20381779795457093, 0.7880926900858558, 0.008089511959573232]
+assert all(isclose(a, b, abs_tol=1e-12) for a, b in zip(logits, expected_logits, strict=True))
+assert all(isclose(a, b, abs_tol=1e-12)
+           for a, b in zip(probabilities, expected_probabilities, strict=True))
+assert all(0.0 < probability < 1.0 for probability in probabilities)
+assert isclose(sum(probabilities), 1.0)
+chosen = max(range(len(vocabulary)), key=probabilities.__getitem__)
+assert vocabulary[chosen] == "healthy"
+print("Attention 정보 벡터:", hidden)
+for token, score, probability in zip(vocabulary, logits, probabilities, strict=True):
+    print(f"{token}: 점수={score:.4f}, 확률={probability:.4f}")
+print(f"확률 합: {sum(probabilities):.4f}")
+print("가장 큰 확률의 후보:", vocabulary[chosen])
+print("검사 통과: 정보 벡터를 어휘 점수와 확률로 바꿨습니다. 학습·문장 생성은 하지 않았습니다")
+PY
+```
+
+### 코드와 계산 해설
+
+- `hidden`은 앞 절 위치 2의 반올림 전 출력 `[1.61332902229994, 5.931436569567589]`를 옮긴 값입니다. 이전 표시값 `[1.6133, 5.9314]`로 바꿔 넣지 않습니다. 여기서는 Attention 계산을 반복하지 않고 출력층 계산만 분리합니다.
+- `vocabulary`는 출력 후보의 순서입니다. 입력 `gpu current gpu`와 다른 목록이며, 두 `gpu` 위치를 포함한 Attention 비중의 순서와도 다릅니다. 일반 언어 모델은 훨씬 큰 어휘에 점수를 주지만, 여기서는 세 후보만 둡니다.
+- `w_vocab`의 **열 하나가 어휘 하나**에 대응합니다. 입력 숫자 두 개로 각 열을 계산해 점수 세 개를 만듭니다. 기존 2×2 QKV 전용 `project`를 2×3 출력 행렬에 그대로 쓰지 않습니다.
+- `exps`에서 최댓값을 빼는 안정화와 softmax 방식은 앞 실습과 같습니다. 하지만 이번 softmax의 축은 **참고할 입력 위치가 아니라 출력 어휘**입니다. 둘 다 숫자가 세 개인 것은 이 예시의 우연입니다. 어휘에 causal mask를 적용하지 않습니다.
+- `chosen`은 가장 큰 확률의 인덱스를 찾는 argmax 방식입니다. 무작위 추출이 아니며, 후보 하나를 확인할 뿐 반복 생성하지 않습니다.
+- `expected_*`는 별도 계산한 검사 기준입니다. softmax 계산에 정답 확률을 넣지 않습니다.
+
+```text
+failed 점수 = hidden[0]×1  + hidden[1]×0   = hidden[0]
+healthy 점수 = hidden[0]×0 + hidden[1]×0.5 = hidden[1]/2
+<eos> 점수 = hidden[0]×(-1) + hidden[1]×0  = -hidden[0]
+```
+
+이 어휘 출력 행렬은 Attention 안의 head 출력 투영 행렬 `Wo`와 다른 역할입니다. 이번 코드는 head 출력 투영·Transformer 블록 전체·입출력 임베딩 가중치 공유를 구현하지 않습니다.
+
+### 로컬 산술 실행 예시
+
+아래는 정본 코드를 로컬 Python으로 실행해 assert를 통과한 출력입니다.
+
+```text
+Attention 정보 벡터: [1.61332902229994, 5.931436569567589]
+failed: 점수=1.6133, 확률=0.2038
+healthy: 점수=2.9657, 확률=0.7881
+<eos>: 점수=-1.6133, 확률=0.0081
+확률 합: 1.0000
+가장 큰 확률의 후보: healthy
+검사 통과: 정보 벡터를 어휘 점수와 확률로 바꿨습니다. 학습·문장 생성은 하지 않았습니다
+```
+
+`healthy`가 선택된 것은 직접 정한 행렬에서 그 점수가 가장 높기 때문입니다. **GPU 상태가 healthy라고 판단했거나 정답을 맞힌 증거가 아닙니다.** 확률 약 0.7881도 임의 계수로 계산한 이 세 후보 안의 분포이지, 검증된 신뢰도가 아닙니다. `<eos>`는 후보로만 포함했으며 반복 생성·종료 규칙은 실행하지 않습니다.
+
+### 복습과 다음 연결
+
+- [ ] 정보 벡터 두 숫자가 어휘 점수 세 숫자로 바뀌는 이유를 설명한다.
+- [ ] softmax 전 점수와 softmax 뒤 확률을 구분한다.
+- [ ] 입력 위치에 대한 Attention 비중과 출력 어휘 확률을 구분한다.
+- [ ] 직접 정한 계수에서 후보가 선택된 것을 학습 성공으로 부르지 않는다.
+
+이번에는 마지막 위치 하나의 출력층만 계산합니다. 정답·loss·역전파·파라미터 수정·모델 저장·반복 생성은 없습니다. 다음에는 정답 토큰과 이 확률을 비교해 loss를 계산하는 과정을 연결할 수 있습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
