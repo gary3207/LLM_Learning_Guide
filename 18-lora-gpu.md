@@ -40,7 +40,7 @@ A: (r, 입력좌표)      B: (출력좌표, r)
 - 새 결과: `~/llm-lab/smollm2_lora_v1/`.
 - 17장 `smollm2_sft_v1/`와 원본 모델 캐시는 유지합니다.
 - GPU와 float32를 사용합니다. 양자화·QLoRA·mixed precision은 포함하지 않습니다.
-- **학습·복원 코드는 CPU에서 실제 검증했습니다. 아래 CUDA 경로와 A10 결과는 독자 VM 실행으로 따로 확인해야 합니다.**
+- **CPU 검증과 별도로 Ubuntu·NVIDIA A10의 CUDA 학습·복원 실행 로그도 확인했습니다. 두 환경의 출력 예시는 아래에서 구분합니다.** 각 환경의 성공 여부는 자신의 실행 출력으로 확인합니다.
 - CUDA가 없으면 출력 폴더를 만들기 전에 명확히 실패합니다. CPU로 조용히 전환하지 않습니다.
 - 코드·출력 폴더가 있으면 덮어쓰지 않습니다. 중단된 새 폴더는 일부 파일만 있을 수 있으므로 자동 삭제하지 말고 확인합니다.
 
@@ -224,6 +224,32 @@ LoRA 별도 저장: smollm2_lora_v1 | 어댑터 가중치: 937056 bytes | 원본
 [restored/train] healthy | loss=8.2563 | 생성='Device network status: Disconnected'
 [restored/probe] failed | loss=8.6117 | 생성="The GPU status is currently '0'."
 [restored/probe] healthy | loss=6.0967 | 생성='The network status is currently stable and functioning'
+LoRA 복원 검사 통과: 원본+어댑터·logits/생성 일치·재학습 없음
+```
+
+### A10 GPU 실행 로그 예시
+
+Ubuntu·NVIDIA A10·PyTorch2.11.0+cu128·Transformers4.57.1·PEFT0.17.1 환경의 제공된 실행 로그에서도 CUDA 학습·어댑터 저장·새 프로세스 복원 검사 통과를 확인했습니다. CPU 예시와 일부 loss 끝자리는 다르지만 생성 문자열과 어댑터 크기는 같았습니다. 아래 로그는 GPU 메모리나 실행 속도 측정 결과가 아닙니다.
+
+```text
+torch: 2.11.0+cu128 CUDA: True
+GPU: NVIDIA A10
+실행 장치: cuda:0 | dtype: torch.float32
+[base/train] failed | loss=14.4325 | 생성='Device GPU status: 1'
+[base/train] healthy | loss=11.1671 | 생성='Device network status:\n\n- Device'
+[base/probe] failed | loss=12.3041 | 생성="The GPU status is currently '0'."
+[base/probe] healthy | loss=7.1800 | 생성='The network status is currently stable and functioning'
+전체 SFT 학습 대상: 134,515,008 | LoRA 학습 대상: 230,400 | 비율: 0.1713%
+[lora/train] failed | loss=11.8943 | 생성='Device GPU status: 0\n\n'
+[lora/train] healthy | loss=8.2563 | 생성='Device network status: Disconnected'
+[lora/probe] failed | loss=8.6117 | 생성="The GPU status is currently '0'."
+[lora/probe] healthy | loss=6.0968 | 생성='The network status is currently stable and functioning'
+LoRA 별도 저장: smollm2_lora_v1 | 어댑터 가중치: 937056 bytes | 원본 동결 가중치 불변
+실행 장치: cuda:0 | dtype: torch.float32
+[restored/train] failed | loss=11.8943 | 생성='Device GPU status: 0\n\n'
+[restored/train] healthy | loss=8.2563 | 생성='Device network status: Disconnected'
+[restored/probe] failed | loss=8.6117 | 생성="The GPU status is currently '0'."
+[restored/probe] healthy | loss=6.0968 | 생성='The network status is currently stable and functioning'
 LoRA 복원 검사 통과: 원본+어댑터·logits/생성 일치·재학습 없음
 ```
 
