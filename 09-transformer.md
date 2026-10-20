@@ -207,7 +207,7 @@ loss: 0.1800 → 0.1614
 - [ ] 기존 행렬을 nn.Linear에 복사할 때 전치하는 이유를 설명한다.
 - [ ] 미래 차단·한 번 갱신·일반화 평가가 서로 다른 검사임을 설명한다.
 
-다음 확장 목표는 **학습되는 토큰·위치 임베딩과 실제 다음 토큰 학습 쌍을 이 블록에 연결하기**입니다. 이 장에는 구현하지 않습니다.
+다음 [10장](10-embedding-next-token.md)에서는 **학습되는 토큰·위치 임베딩과 실제 다음 토큰 학습 쌍을 이 블록 구조에 연결**합니다.
 
 ## 공식 근거
 
@@ -215,4 +215,4 @@ loss: 0.1800 → 0.1614
 - [Linear의 weight 저장 규약](https://docs.pytorch.org/docs/stable/generated/torch.nn.Linear.html)
 - [TransformerEncoderLayer 구성과 norm_first](https://docs.pytorch.org/docs/stable/generated/torch.nn.TransformerEncoderLayer.html) — Pre-LN 순서 참고이며 이 실습이 해당 클래스 전체와 같다는 뜻은 아닙니다.
 
-[← 이전: Attention 입문](08-attention.md) · [목차](README.md)
+[← 이전: Attention 입문](08-attention.md) · [목차](README.md) · [다음: 임베딩과 다음 토큰 학습 →](10-embedding-next-token.md)
