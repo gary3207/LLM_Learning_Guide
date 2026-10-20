@@ -32,6 +32,8 @@
 | `~/llm-lab/next_token.pt` | 한 토큰 다음 예측 모델 | 05장 학습·저장 |
 | `~/llm-lab/next_token_context2.pt` | 두 토큰 문맥 모델 | 06장 학습·저장 |
 | `~/llm-lab/next_token_context3.pt` | 세 토큰 문맥 모델 | 06장 확장 2/3 학습·저장 |
+| `~/llm-lab/source/tiny_transformer_checkpoint.py` | 작은 블록 기반 모델의 저장·복원·생성 코드 | 11장 코드 배치 |
+| `~/llm-lab/tiny_transformer_v1.pt` | 학습되는 임베딩·블록·출력층과 어휘 | 11장 재현 학습·별도 저장 |
 
 체크포인트는 저장소에 포함하지 않습니다. 가이드 순서대로 생성하고, 복원 시 **모델 구조·어휘 순서·분류 이름·장치 배치**가 맞는지 확인합니다. 저장 모델이 있다면 무조건 재학습하거나 삭제하지 말고 먼저 복원 예제로 점검합니다.
 
@@ -95,7 +97,7 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. [09장 작은 Transformer 블록](09-transformer.md)은 잔차 두 개·Pre-LN·FFN을 붙여 미래 차단과 전체 파라미터 한 번 갱신을 검사합니다. [10장 임베딩과 다음 토큰 학습](10-embedding-next-token.md)은 토큰·위치 임베딩과 두 문장의 모든 입력 위치 정답을 연결합니다. 이 블록 기반 모델의 저장·복원·반복 생성·별도 데이터 평가는 다음 범위입니다.
+[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. [09장 작은 Transformer 블록](09-transformer.md)은 잔차 두 개·Pre-LN·FFN을 붙여 미래 차단과 전체 파라미터 한 번 갱신을 검사합니다. [10장 임베딩과 다음 토큰 학습](10-embedding-next-token.md)은 토큰·위치 임베딩과 두 문장의 모든 입력 위치 정답을 연결합니다. [11장 저장·복원·생성](11-checkpoint-generation.md)은 같은 모델을 재현 학습해 별도 저장하고 새 프로세스에서 복원·반복 생성합니다. 별도 데이터 평가는 다음 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 

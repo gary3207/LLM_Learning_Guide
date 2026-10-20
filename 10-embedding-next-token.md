@@ -1,6 +1,6 @@
 # 10 · 임베딩과 다음 토큰 학습 연결
 
-[← 이전: 작은 Transformer 블록](09-transformer.md) · [목차](README.md)
+[← 이전: 작은 Transformer 블록](09-transformer.md) · [목차](README.md) · [다음: 저장·복원·생성 →](11-checkpoint-generation.md)
 
 ## 1. 목표와 앞 실습과의 차이
 
@@ -231,7 +231,7 @@ network current status healthy -> <eos> | 정답: <eos>
 - padding·미등록 토큰 처리·tokenizer 학습·multi-head·Attention 출력 사영 학습·최종 LayerNorm·dropout은 추가하지 않았습니다.
 - 학습/검증/테스트를 나누지 않았고, 학습 예문 재현만 확인합니다.
 - 모델은 메모리에만 있습니다. 명령 종료 뒤 다른 프로세스에서 복원할 파일은 없습니다.
-- 다음 목표는 별도 체크포인트를 안전하게 저장하고 같은 어휘·구조로 복원한 뒤 생성 경로를 확인하는 것입니다. 이번에는 구현하지 않습니다.
+- 다음 [11장](11-checkpoint-generation.md)에서 같은 설정으로 재현 학습해 별도 저장하고 같은 어휘·구조로 복원한 뒤 생성 경로를 확인합니다. 이 장의 명령에는 저장·생성이 없습니다.
 
 - [ ] 토큰 ID와 그 ID로 찾는 학습 벡터를 구분한다.
 - [ ] 위치 임베딩을 더해도 좌표 수가 유지되는 이유를 설명한다.
@@ -241,4 +241,4 @@ network current status healthy -> <eos> | 정답: <eos>
 
 공식 참고: [Embedding](https://docs.pytorch.org/docs/stable/generated/torch.nn.Embedding.html), [CrossEntropyLoss](https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html).
 
-[← 이전: 작은 Transformer 블록](09-transformer.md) · [목차](README.md)
+[← 이전: 작은 Transformer 블록](09-transformer.md) · [목차](README.md) · [다음: 저장·복원·생성 →](11-checkpoint-generation.md)
