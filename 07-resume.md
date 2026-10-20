@@ -123,7 +123,7 @@ network current status -> {'healthy': 1}
 
 [22장 서빙 성능](22-serving-benchmark.md)은 기존 QLoRA의 순차 요청을 워밍업/측정으로 나누고 HTTP 지연·생성 시간·실제 토큰/초·CUDA allocator peak를 새 JSON으로 저장합니다. CPU 검사와 별도 CUDA 측정10건의 HTTP 중앙값447.73ms·생성17.93토큰/초·최대peak allocated176.04MiB/peak reserved316.00MiB를 구분합니다. 성능 측정은 정답 생성 개선·TTFT·동시 부하·장시간 안정성 검증이 아니며 호출 뒤 서버를 종료합니다.
 
-[23장 버전 등록·선택](23-model-registry.md)은 저장한 QLoRA 폴더·설정·성능 JSON의 경로와 해시를 등록해 기존 입력이 바뀌지 않았는지 확인하고 선택한 이름을 기록합니다. 로컬 합성 파일 검사와 실제 VM 등록을 구분하며, 등록/선택은 새 학습·품질 합격·서버 배포가 아닙니다.
+[23장 버전 등록·선택](23-model-registry.md)은 저장한 QLoRA 폴더·설정·성능 JSON의 경로와 해시를 등록해 기존 입력이 바뀌지 않았는지 확인하고 선택한 이름을 기록합니다. 별도 VM 실행 예시는 `qlora-v1`·모델 파일11개·보고서7,260bytes 등록·선택·show 재검사 성공입니다. 로컬 합성 파일 검사와 구분하며, 등록/선택은 새 학습·품질 합격·서버 배포가 아닙니다.
 
 - [ ] `encode` 규칙과 학습되는 가중치를 구분한다.
 - [ ] `zero_grad()`, `backward()`, `step()`의 역할을 설명한다.

@@ -197,7 +197,7 @@ python smollm2_registry.py select qlora-v1 &&
 python smollm2_registry.py show
 ```
 
-처음에는 아래 형태로 출력된 뒤, 선택 버전의 전체 JSON이 나옵니다. **기대 형식이며 아직 해당 VM의 실행 결과가 아닙니다.** 모델 파일 개수·절대 경로·등록 시각·해시는 실제 파일에 따라 표시됩니다.
+처음에는 아래 형태로 출력된 뒤, 선택 버전의 전체 JSON이 나옵니다. **기대 형식이며 별도로 확인한 실제 VM 실행 예시는6절에 구분합니다.** 모델 파일 개수·절대 경로·등록 시각·해시는 실제 파일에 따라 표시됩니다.
 
 ```text
 REGISTERED qlora-v1 model files: <실제 파일 개수>
@@ -281,7 +281,31 @@ python source/23-model-registry/test_registry.py
 python source/check_guide.py
 ```
 
-검사 소스: [test_registry.py](source/23-model-registry/test_registry.py). Ubuntu VM의 실제 QLoRA 폴더·성능 보고서 등록/선택은4절의 실제 출력으로 별도 확인합니다. 이번에는 파일 관리 단계만 실행하며,22장의 서버 종료 여부는 그 단계의 상태와 구분합니다.
+검사 소스: [test_registry.py](source/23-model-registry/test_registry.py). 위 합성 파일 검증과 아래 실제 QLoRA 폴더·성능 보고서의 VM 등록은 별도 근거입니다. 이번에는 파일 관리 단계만 실행하며,22장의 서버 종료 여부는 그 단계의 상태와 구분합니다.
+
+### Ubuntu VM의 실제 등록·선택·조회 예시
+
+다음은 실제 VM 출력 중 파일 생성·등록·선택 부분입니다. 이어서 `show`가 전체 등록 JSON을 출력하고 셸 프롬프트로 돌아온 것을 확인했습니다.
+
+```text
+CREATED smollm2_registry.py 6449 bytes
+REGISTERED qlora-v1 model files: 11
+SELECTED qlora-v1
+```
+
+| 조회 항목 | 실제 결과 |
+|---|---|
+| schema / version | 1 / `qlora-v1` |
+| 원본 모델 | `HuggingFaceTB/SmolLM2-135M-Instruct` |
+| 고정 revision | `12fd25f77366fa6b3b4b768ec3050bf629380bac` |
+| 등록한 모델 폴더 파일 수 | 11개. 어댑터·설정·토크나이저·reference 등 |
+| 어댑터 파일 크기 | 937,056bytes |
+| 성능 보고서 파일 크기 | 7,260bytes |
+| 연결된 성능 요약 | 측정10건·HTTP 중앙값447.73ms·생성17.93토큰/초 |
+
+모델 파일11개와 보고서의 지문은64자리 소문자16진수 SHA256 형식이며, 성능 summary는22장의 측정 결과와 일치했습니다. `show` 성공은 선택한 receipt의 지문, 현재 모델 폴더의 파일 목록/크기/지문, 현재 보고서의 크기/지문을 코드가 다시 검사하고 통과했다는 뜻입니다. 원격 파일을 별도 도구로 다시 읽은 검사나 새 추론 결과는 아닙니다.
+
+이제 같은 이름의 재등록 대신 `python smollm2_registry.py show`로 조회할 수 있습니다. 기존 모델과 보고서는 원래 위치에 남아 있고 선택 정보만 레지스트리에 기록합니다. 선택한 모델이 자동으로 서버에 배포된 것은 아니며, `report_linkage`의 과거 실행 짝 증명 한계와 기존 정답 생성 실패도 그대로 유지합니다.
 
 ## 7. 복습
 
