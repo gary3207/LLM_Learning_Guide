@@ -1,6 +1,6 @@
 # 20 · 4비트 원본으로 QLoRA 학습·저장·복원
 
-[← 이전: 모델 비교 평가](19-model-evaluation.md) · [목차](README.md)
+[← 이전: 모델 비교 평가](19-model-evaluation.md) · [목차](README.md) · [다음: API 서빙 →](21-api-serving.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -368,7 +368,7 @@ python source/20-qlora/test_qlora.py
 - [ ] 어댑터 복원에 같은 원본 revision·양자화 설정이 필요한 이유를 설명한다.
 - [ ] 저장·복원 성공과 정답률·메모리·속도를 별개로 해석한다.
 
-다음 묶음은 **저장 모델의 API 서빙**입니다. 모델을 로딩하고 요청을 받아 응답하는 경로를 배우되, 이번 장에 서버·외부 노출·배포 코드를 미리 넣지 않습니다.
+다음 [21장 저장 모델의 API 서빙](21-api-serving.md)은 모델을 로딩하고 로컬 HTTP 요청을 받아 응답하는 경로를 배웁니다. 이 장의 학습·저장 코드와 분리하며 외부 노출·운영 배포는 포함하지 않습니다.
 
 ## 공식 참고자료
 
@@ -377,4 +377,4 @@ python source/20-qlora/test_qlora.py
 - [bitsandbytes0.48.2 · 설치·하드웨어 지원](https://huggingface.co/docs/bitsandbytes/v0.48.2/installation)
 - [QLoRA 논문](https://arxiv.org/abs/2305.14314)
 
-[← 이전: 모델 비교 평가](19-model-evaluation.md) · [목차](README.md)
+[← 이전: 모델 비교 평가](19-model-evaluation.md) · [목차](README.md) · [다음: API 서빙 →](21-api-serving.md)
