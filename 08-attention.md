@@ -428,6 +428,126 @@ status: X=[1.0, 1.0] -> Q=[2.0, 1.0], K=[1.0, 1.0], V=[2.0, 3.0]
 - [ ] 토큰별로 따로 행렬을 정하지 않고 같은 변환을 공유함을 구분한다.
 - [ ] 이번에 계산한 Q·K·V를 학습된 값이나 Attention 비중으로 부르지 않는다.
 
-다음에는 이렇게 만든 Q·K·V를 앞서 배운 내적·softmax·가중합에 연결할 수 있습니다. 실제 파라미터 학습·여러 head·causal mask·Transformer 전체 구현은 후속 주제입니다.
+다음 절에서는 이렇게 만든 Q·K·V를 앞서 배운 내적·softmax·가중합에 연결합니다. 실제 파라미터 학습·여러 head·causal mask·Transformer 전체 구현은 후속 주제입니다.
+
+## 9. 후속 실습 · 입력 X에서 Attention 출력까지
+
+### 목표와 계산 범위
+
+8절의 입력과 변환 행렬을 그대로 유지하고, 7절의 내적·크기 조정·softmax·Value 가중합을 연결합니다. 같은 입력 X에서 Q·K·V를 만들고 각 토큰의 Q로 같은 입력의 모든 K·V를 참고하는 **Self-Attention의 한 head 계산**입니다. 근거: *Attention Is All You Need*, §3.2.1–3.2.3, arXiv:1706.03762.
+
+```text
+X (3×2) → Q·K·V (각 3×2)
+Q 하나와 K 세 개의 내적 → sqrt(2)로 나누기 → softmax 비중 세 개
+비중 세 개로 V 세 개 가중합 → 출력 벡터 하나 (숫자 두 개)
+위 계산을 Q 세 개에 반복 → 전체 출력 (3×2)
+```
+
+행벡터 표기와 bias 없는 변환을 유지합니다. 이전 3/3의 직접 지정 Q·K·V가 아니라 **바로 앞 8절에서 계산한 값**을 사용하므로 7절의 출력 숫자와는 다릅니다. 모든 위치를 계산하지만 causal mask는 없으므로 `gpu` 위치도 뒤의 `current`, `status`를 참고합니다. 다음 토큰 학습에 그대로 쓰는 causal 모델이 아니며, 위치 정보·여러 head·출력 투영·잔차 연결·정규화도 구현하지 않습니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**에서 기존 가상환경을 활성화한 뒤 실행합니다. Python 3.10 이상과 표준 라이브러리만 사용합니다. 아래 명령은 이전 실습 변수가 없어도 실행되며 파일·체크포인트를 읽거나 쓰지 않습니다.
+
+**소스:** [05-self-attention.py](source/08-attention/05-self-attention.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, sqrt
+
+# 앞 실습과 같은 교육용 입력·계수입니다. 학습된 값이 아닙니다.
+tokens = ["gpu", "current", "status"]
+inputs = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+wq = [[1.0, 0.0], [1.0, 1.0]]
+wk = [[0.0, 1.0], [1.0, 0.0]]
+wv = [[2.0, 0.0], [0.0, 3.0]]
+
+
+def project(x, matrix):
+    # ponytail: 2차원 행벡터 전용; 차원 확장은 PyTorch 행렬곱으로 전환합니다.
+    return [x[0] * matrix[0][column] + x[1] * matrix[1][column]
+            for column in range(2)]
+
+
+queries = [project(x, wq) for x in inputs]
+keys = [project(x, wk) for x in inputs]
+values = [project(x, wv) for x in inputs]
+assert queries == [[1.0, 0.0], [1.0, 1.0], [2.0, 1.0]]
+assert keys == [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+assert values == [[2.0, 0.0], [0.0, 3.0], [2.0, 3.0]]
+# 별도 Decimal 고정밀 계산의 검사 기준이며, 출력 계산에는 사용하지 않습니다.
+expected_scores = [[0.0, 1.0, 1.0], [1.0, 1.0, 2.0], [1.0, 2.0, 3.0]]
+expected_outputs = [[1.1977758146404282, 2.4066725560787155],
+                    [1.5034898434845539, 2.255234765226831],
+                    [1.43200918051748, 2.579912264869866]]
+print("참고할 토큰 순서:", tokens)
+for token, query, score_check, output_check in zip(
+        tokens, queries, expected_scores, expected_outputs, strict=True):
+    scores = [sum(q * k for q, k in zip(query, key, strict=True)) for key in keys]
+    assert scores == score_check
+    scaled = [score / sqrt(len(query)) for score in scores]
+    exps = [exp(score - max(scaled)) for score in scaled]
+    weights = [number / sum(exps) for number in exps]
+    assert len(weights) == len(tokens) and isclose(sum(weights), 1.0)
+    assert all(0.0 < weight < 1.0 for weight in weights)
+    output = [sum(weight * value[column] for weight, value in zip(weights, values, strict=True))
+              for column in range(len(values[0]))]
+    assert all(isclose(actual, target) for actual, target in zip(output, output_check, strict=True))
+    print(f"{token}: Q={query}")
+    print("  내적 점수:", scores)
+    print("  비중:", [round(number, 4) for number in weights])
+    print("  출력 벡터:", [round(number, 4) for number in output])
+print("검사 통과: 입력 X에서 Q·K·V를 만들고 각 토큰의 Attention 출력을 계산했습니다")
+PY
+```
+
+### 코드와 계산 해설
+
+- `project`와 입력·행렬·QKV 검사는 8절과 같습니다. 독립 복사 실행을 위해 같은 코드를 포함하며 범용 행렬 라이브러리는 만들지 않습니다.
+- 바깥 반복문은 `gpu`, `current`, `status`의 Q를 하나씩 선택합니다. 안쪽 `scores` 계산은 선택한 Q를 **모든 K**와 비교합니다. 토큰 자신의 K 하나만 비교하는 것이 아닙니다.
+- `weights`의 순서는 언제나 `gpu`, `current`, `status`입니다. 각 Q에 대해 별도로 softmax를 계산하므로 비중 합도 각각 1입니다.
+- `output`은 K가 아니라 **V를 가중합**합니다. `expected_scores`, `expected_outputs`는 검사 기준이며 계산 입력이 아닙니다. `round`도 출력 표시만 바꿉니다.
+
+예를 들어 `gpu`의 Q는 `[1, 0]`이고 K는 `[0, 1]`, `[1, 0]`, `[1, 1]`입니다. 내적은 차례로 `[0, 1, 1]`입니다. 크기를 조정하고 softmax를 적용한 비중으로 V를 섞으면 다음과 같습니다. 아래 비중은 반올림되어 끝자리가 다를 수 있습니다.
+
+```text
+출력 첫 좌표 ≈ 0.1978×2 + 0.4011×0 + 0.4011×2 ≈ 1.1978
+출력 둘째 좌표 ≈ 0.1978×0 + 0.4011×3 + 0.4011×3 ≈ 2.4067
+```
+
+### 로컬 산술 실행 예시
+
+다음은 위 소스를 Python으로 실행하고 assert를 통과한 출력입니다. 교육용 상수 계산이며 파라미터 학습이나 다음 단어 예측 결과가 아닙니다.
+
+```text
+참고할 토큰 순서: ['gpu', 'current', 'status']
+gpu: Q=[1.0, 0.0]
+  내적 점수: [0.0, 1.0, 1.0]
+  비중: [0.1978, 0.4011, 0.4011]
+  출력 벡터: [1.1978, 2.4067]
+current: Q=[1.0, 1.0]
+  내적 점수: [1.0, 1.0, 2.0]
+  비중: [0.2483, 0.2483, 0.5035]
+  출력 벡터: [1.5035, 2.2552]
+status: Q=[2.0, 1.0]
+  내적 점수: [1.0, 2.0, 3.0]
+  비중: [0.14, 0.284, 0.576]
+  출력 벡터: [1.432, 2.5799]
+검사 통과: 입력 X에서 Q·K·V를 만들고 각 토큰의 Attention 출력을 계산했습니다
+```
+
+### 복습과 다음 연결
+
+- [ ] 입력·변환 행렬·QKV·비중·출력 벡터를 구분한다.
+- [ ] `gpu`의 내적 점수 `[0, 1, 1]`을 계산한다.
+- [ ] Q 하나당 비중 세 개와 출력 숫자 두 개가 나오는 이유를 설명한다.
+- [ ] 비중은 토큰을 참고하는 비율이며 다음 토큰의 어휘 확률이 아님을 구분한다.
+- [ ] mask가 없어서 뒤 토큰도 참고한다는 한계를 설명한다.
+
+다음 연결 주제는 causal mask로 뒤 위치를 참고하지 못하게 제한하는 계산입니다. 현재 실습에서는 구현하지 않습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
