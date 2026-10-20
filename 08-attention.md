@@ -8,11 +8,11 @@
 
 | 단계 | 내용 | 범위 |
 |---|---|---|
-| 1/3 | 같은 입력, 다른 가중치 | 이 장의 실행 실습 |
-| 2/3 | Query·Key 점수와 softmax | 후속 실습 예정 |
+| 1/3 | 같은 입력, 다른 가중치 | 직접 정한 비중의 가중합 |
+| 2/3 | Query·Key 점수와 softmax | 내적·크기 조정·비중 계산 |
 | 3/3 | Value 가중합과 고정 문맥 비교 | 후속 실습 예정 |
 
-이번 코드는 **Attention 전체 구현이나 모델 학습이 아닙니다.** 가중치를 직접 정해 가중합의 의미만 살펴봅니다. PyTorch·GPU·체크포인트가 필요하지 않으며 파일을 생성하거나 수정하지 않습니다.
+이번 코드는 **Attention 전체 구현이나 모델 학습이 아닙니다.** 1/3에서는 비중을 직접 정하고, 2/3에서는 직접 정한 Query·Key에서 비중을 계산합니다. PyTorch·GPU·체크포인트가 필요하지 않으며 파일을 생성하거나 수정하지 않습니다.
 
 ## 1. 펼치기와 가중합의 차이
 
@@ -122,6 +122,104 @@ current 쪽 비중: [0.1, 0.8, 0.1] -> [0.2, 0.9]
 - [ ] 가중치가 달라지는 것과 입력 자체가 달라지는 것을 구분한다.
 - [ ] 사람이 지정한 비중과 Query·Key로 계산한 비중을 구분한다.
 
-다음 단계에서는 **비중을 직접 쓰는 대신 Query·Key 점수를 softmax로 바꾸는 방법**을 배웁니다. 이번 코드의 출력과 위 항목을 확인한 뒤 연결합니다.
+다음 2/3단계에서는 **비중을 직접 쓰는 대신 Query·Key 점수를 softmax로 바꾸는 방법**을 배웁니다.
+
+## 6. 2/3단계 · Query·Key에서 비중 계산하기
+
+1/3에서는 비중 `[0.8, 0.1, 0.1]`을 직접 정했습니다. 이제는 Query 한 개를 Key 세 개와 비교하여 비중 세 개를 계산합니다.
+
+- **Query(Q):** 어떤 정보를 참고할지 비교할 때 사용하는 벡터입니다.
+- **Key(K):** 각 토큰을 Query와 비교하기 위한 벡터입니다.
+- **내적:** 같은 좌표끼리 곱한 뒤 더합니다. 이번 방식에서는 큰 내적일수록 큰 비중을 받습니다.
+- **크기 조정:** 내적 점수를 Key 차원의 제곱근으로 나눕니다. 여기서는 차원이 2이므로 `sqrt(2)`입니다.
+- **softmax:** 각 점수의 지수함수 값을 전체 합으로 나누어, 합이 1인 비중을 만듭니다.
+
+이것은 *Attention Is All You Need*, §3.2.1의 scaled dot-product 계산 순서입니다. 실제 Transformer에서는 학습되는 선형 변환으로 Q·K·V를 만들지만, 여기서는 계산 흐름에 집중하려고 Q·K를 직접 정합니다. 기존 모델을 Attention 모델로 바꾸거나 학습하지 않습니다.
+
+Key는 앞서 Value에 쓴 숫자와 같게 정하되, **역할은 다릅니다.** Key는 비중을 정하는 비교용이고 Value는 그 비중으로 섞을 정보입니다. 이번 단계에서는 Value를 아직 섞지 않습니다.
+
+### 전체 명령
+
+이전과 같은 **Ubuntu VM 터미널**에서 실행합니다. Python 표준 라이브러리만 사용하며 파일 저장·수정이 없습니다. 이전 코드를 파일로 저장할 필요도 없습니다.
+
+**소스:** [02-query-key.py](source/08-attention/02-query-key.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, sqrt
+
+# 교육용 Q·K를 직접 지정합니다. 학습된 벡터가 아닙니다.
+tokens = ["gpu", "current", "status"]
+keys = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+cases = [
+    ("Q1", [1.0, 0.0], [1.0, 0.0, 1.0], 0, 1),
+    ("Q2", [0.0, 1.0], [0.0, 1.0, 1.0], 1, 0),
+]
+print("Key 순서:", tokens)
+for label, query, expected_scores, higher, lower in cases:
+    scores = [sum(q * k for q, k in zip(query, key, strict=True)) for key in keys]
+    assert scores == expected_scores
+    scaled = [score / sqrt(len(query)) for score in scores]
+    exps = [exp(score - max(scaled)) for score in scaled]
+    weights = [number / sum(exps) for number in exps]
+    assert len(weights) == len(keys)
+    assert all(0.0 < weight < 1.0 for weight in weights)
+    assert isclose(sum(weights), 1.0)
+    assert weights[higher] > weights[lower]
+    assert isclose(weights[higher], weights[2])
+    assert isclose(weights[higher] / weights[lower], exp(1.0 / sqrt(2.0)))
+    print(f"{label}: {query}")
+    print("  내적 점수:", scores)
+    print("  크기 조정:", [round(number, 4) for number in scaled])
+    print("  softmax 비중:", [round(number, 4) for number in weights])
+    print(f"  비중 합: {sum(weights):.4f}")
+
+print("검사 통과: 같은 Key라도 Query에 따라 비중이 달라집니다")
+PY
+```
+
+### 코드 해설
+
+`keys`는 세 토큰 각각의 2차원 Key입니다. 반복문 한 번은 Query 하나를 Key 세 개와 비교하므로 내적 점수도 세 개, 비중도 세 개입니다. Q1과 Q2 사이에 바꾸는 계산 입력은 Query뿐입니다.
+
+`expected_scores`는 내적 계산 후 확인하는 정답이고, `higher`와 `lower`는 비중 대소를 검사할 위치입니다. 비중 계산에는 사용하지 않습니다.
+
+`exp`는 지수함수입니다. `scaled`의 최댓값을 모든 점수에서 똑같이 빼면 softmax의 수학적 결과는 같지만 큰 양수의 지수 계산에서 발생할 수 있는 오버플로를 피할 수 있습니다. `round`는 표시만 반올림합니다.
+
+Q1과 `status`의 내적은 `1×1 + 0×1 = 1`입니다. Q1과 `gpu`의 내적도 `1×1 + 0×0 = 1`이므로 둘의 비중은 같습니다. **토큰 이름이 아니라 지정한 벡터가 계산 결과를 정합니다.**
+
+### 계산 실행 예시
+
+다음은 코드를 Python으로 실행해 확인한 산술 출력 예시입니다. 모델이 학습한 중요도나 다음 단어 예측 확률이 아닙니다.
+
+```text
+Key 순서: ['gpu', 'current', 'status']
+Q1: [1.0, 0.0]
+  내적 점수: [1.0, 0.0, 1.0]
+  크기 조정: [0.7071, 0.0, 0.7071]
+  softmax 비중: [0.4011, 0.1978, 0.4011]
+  비중 합: 1.0000
+Q2: [0.0, 1.0]
+  내적 점수: [0.0, 1.0, 1.0]
+  크기 조정: [0.0, 0.7071, 0.7071]
+  softmax 비중: [0.1978, 0.4011, 0.4011]
+  비중 합: 1.0000
+검사 통과: 같은 Key라도 Query에 따라 비중이 달라집니다
+```
+
+점수 0도 softmax 뒤에는 비중이 0이 아닙니다. softmax는 가장 큰 항목 하나만 고르는 `argmax`가 아닙니다. 이 예시에서는 둘 이상의 토큰이 같은 큰 비중을 받습니다.
+
+### 확인 질문과 다음 단계
+
+- [ ] Key를 고정하고 Query만 바꿨을 때 무엇이 달라졌는가?
+- [ ] Q1에서 `gpu`와 `status`의 비중이 같은 이유는 무엇인가?
+- [ ] 내적 점수 0이 비중 0을 뜻하지 않는 이유는 무엇인가?
+- [ ] Q·K를 사람이 정한 것과, 계산된 비중을 사람이 정한 것을 구분하는가?
+
+3/3에서는 이번에 계산한 비중으로 Value를 가중합하고, 기존 `Flatten → Linear` 모델과의 차이를 연결합니다. 여러 head·전체 위치 계산·causal mask·학습은 아직 구현하지 않습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)

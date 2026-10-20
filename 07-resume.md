@@ -95,7 +95,7 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)에서 기존 모델의 펼치기와 직접 정한 비중의 가중합을 작은 숫자로 비교합니다. 이 단계는 모델 학습·저장 없이 Python 표준 라이브러리만 사용합니다. Query·Key로 비중을 계산하는 실습과 Transformer 구현은 아직 포함하지 않습니다.
+[08장 Attention 입문](08-attention.md)에서 기존 모델의 펼치기와 직접 정한 비중의 가중합을 작은 숫자로 비교합니다. 이어서 교육용 Query·Key로 내적·크기 조정·softmax 비중을 계산합니다. 모델 학습·저장 없이 Python 표준 라이브러리만 사용합니다. 계산된 비중의 Value 가중합 연결과 Transformer 구현은 후속 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 
