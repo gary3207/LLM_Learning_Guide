@@ -1096,4 +1096,103 @@ PY
 
 이번에는 고정 확률에서 한 위치의 손실만 계산합니다. 전체 문장·batch 평균, padding 제외, label smoothing, 기울기·파라미터 갱신·모델 저장·반복 생성은 구현하지 않습니다. 다음에는 loss에서 출력 점수의 기울기로 연결할 수 있습니다.
 
+## 15. 후속 실습 · loss에서 출력 점수의 기울기로
+
+### 목표와 앞 실습 연결
+
+13절의 반올림 전 `logits`와 14절의 교육용 정답 `failed`를 유지합니다. 이번에는 점수에서 확률과 loss를 다시 계산하고, **각 점수를 조금 바꾸면 loss가 어느 방향으로 변하는가**를 확인합니다. Attention·출력 행렬은 재계산하지 않습니다.
+
+한 위치·한 정답, 클래스 가중치·label smoothing이 없는 softmax cross-entropy에서 출력 점수 `z[i]`의 기울기는 다음과 같습니다.
+
+```text
+정답 후보의 점수 기울기 = 그 후보의 확률 - 1
+나머지 후보의 점수 기울기 = 그 후보의 확률 - 0
+```
+
+이는 **확률 자체에 대한 기울기가 아니라 softmax 전 점수에 대한 기울기**입니다. PyTorch 공식 `CrossEntropyLoss` 문서의 한 정답 손실 수식을 미분한 결과입니다. 정답을 나타내는 `[1, 0, 0]`과 확률 세 개를 좌표별로 빼므로 기울기도 세 개입니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source`에서 실행합니다. Python 3.10 이상과 표준 라이브러리만 사용합니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지 실행입니다. 앞 실습 변수·파일 없이 실행되며 설치·GPU·파일 읽기·쓰기·모델 학습은 없습니다.
+
+**소스:** [11-logit-gradient.py](source/08-attention/11-logit-gradient.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, isfinite, log
+
+# 앞 출력층의 반올림 전 점수와 앞 loss 실습의 교육용 정답을 유지합니다.
+vocabulary = ["failed", "healthy", "<eos>"]
+logits = [1.61332902229994, 2.9657182847837945, -1.61332902229994]
+target = "failed"
+assert len(logits) == len(vocabulary) and all(isfinite(z) for z in logits)
+assert target in vocabulary
+target_index = vocabulary.index(target)
+
+
+def loss_at(scores):
+    # ponytail: 한 위치·고정 정답 전용; batch와 자동 미분은 PyTorch로 전환합니다.
+    maximum = max(scores)
+    return log(sum(exp(z - maximum) for z in scores)) - (scores[target_index] - maximum)
+
+
+exps = [exp(z - max(logits)) for z in logits]
+probabilities = [value / sum(exps) for value in exps]
+# softmax + 한 정답 cross-entropy의 logits에 대한 기울기입니다.
+gradients = [p - (1.0 if index == target_index else 0.0)
+             for index, p in enumerate(probabilities)]
+assert isclose(loss_at(logits), 1.5905288315131196, rel_tol=0.0, abs_tol=1e-12)
+assert isclose(sum(gradients), 0.0, abs_tol=1e-12)
+assert gradients[0] < 0.0 and all(g > 0.0 for g in gradients[1:])
+print("교육용 정답 토큰:", target)
+print(f"기준 loss: {loss_at(logits):.4f}")
+epsilon = 1e-5
+for index, (token, probability, gradient) in enumerate(
+        zip(vocabulary, probabilities, gradients, strict=True)):
+    plus, minus = logits[:], logits[:]
+    plus[index] += epsilon
+    minus[index] -= epsilon
+    numerical = (loss_at(plus) - loss_at(minus)) / (2.0 * epsilon)
+    assert isclose(gradient, numerical, rel_tol=0.0, abs_tol=1e-8)
+    print(f"{token}: 확률={probability:.4f}, 기울기={gradient:+.4f}, 수치검사={numerical:+.4f}")
+assert logits == [1.61332902229994, 2.9657182847837945, -1.61332902229994]
+print("검사 통과: 출력 점수의 기울기와 수치검사가 일치합니다. 가중치는 수정하지 않았습니다")
+PY
+```
+
+### 코드와 기울기 해설
+
+- `loss_at`은 점수 세 개에서 고정 정답의 loss 하나를 계산합니다. `m=max(scores)`라 하면 `-ln(softmax(scores)[target]) = ln(Σexp(z-m)) - (z_target-m)`입니다. 확률을 먼저 반올림하지 않고, 큰 지수 계산을 피하도록 최댓값을 뺍니다.
+- `gradients`의 조건문은 정답 위치에서만 1을 뺍니다. 기울기는 loss의 **변화율**이지 Attention 비중·어휘 확률·수정된 점수가 아닙니다. 음수나 양수 모두 가능합니다.
+- `failed`의 음수 기울기는 그 점수만 조금 올리면 loss가 내려간다는 뜻입니다. 다른 후보의 양수 기울기는 그 점수만 조금 올리면 loss가 올라간다는 뜻입니다. 각 경우 나머지 점수는 고정합니다. 단, softmax로 연결되므로 확률 세 개는 함께 바뀝니다.
+- `epsilon=1e-5`는 점수를 시험 삼아 움직일 작은 간격이며 **학습률이 아닙니다.** `plus`·`minus`는 복사본입니다. 한 좌표만 앞뒤로 바꿔 `loss 차이 / 점수 간격`을 계산하는 중앙차분 수치검사입니다. 원래 `logits`와 모델 가중치는 수정하지 않습니다.
+- 수치검사는 근삿값이므로 허용 오차 `1e-8`로 비교합니다. 이 간격과 오차는 현재 작은 예제용이며, 간격을 무조건 더 작게 하면 부동소수점 반올림 때문에 더 정확해지는 것은 아닙니다.
+- 기울기 합 0도 검사합니다. 모든 점수에 같은 값을 더해도 softmax가 같다는 성질과 연결됩니다. 검사 통과는 이 예제의 산술 일치이지 전체 모델의 학습 성공이 아닙니다.
+
+### 로컬 산술 실행 예시
+
+정본 소스를 로컬 Python으로 실행해 assert를 통과한 출력입니다. 마지막 자리에는 환경별 부동소수점 차이가 있을 수 있습니다.
+
+```text
+교육용 정답 토큰: failed
+기준 loss: 1.5905
+failed: 확률=0.2038, 기울기=-0.7962, 수치검사=-0.7962
+healthy: 확률=0.7881, 기울기=+0.7881, 수치검사=+0.7881
+<eos>: 확률=0.0081, 기울기=+0.0081, 수치검사=+0.0081
+검사 통과: 출력 점수의 기울기와 수치검사가 일치합니다. 가중치는 수정하지 않았습니다
+```
+
+### 한계·복습과 다음 연결
+
+- [ ] `failed`의 기울기만 확률에서 1을 빼는 이유를 설명한다.
+- [ ] 음수 기울기와 loss를 줄이기 위한 점수 변화 방향을 구분한다.
+- [ ] 출력 점수의 기울기와 출력 행렬 가중치의 기울기를 구분한다.
+- [ ] 수치검사용 `epsilon`과 학습률을 구분한다.
+
+이번에는 **출력 점수에 대한 기울기만** 계산합니다. 자동 미분·출력 행렬과 Attention 파라미터로의 역전파·optimizer·가중치 갱신·저장은 구현하지 않습니다. 다음에는 이 기울기를 출력 행렬의 기울기로 연결할 수 있습니다. 점수는 모델의 중간 결과이며, 일반적인 학습에서 optimizer가 직접 갱신하는 대상은 파라미터입니다.
+
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
