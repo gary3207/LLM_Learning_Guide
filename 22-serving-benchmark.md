@@ -300,7 +300,7 @@ PY
 ) && python smollm2_benchmark.py --repeats 5 --output ../serving_benchmark_v1.json
 ```
 
-`SUMMARY` 뒤에 지연의 중앙값·최솟값·최댓값과 두 종류의 토큰/초가 나오고 `SAVED ../serving_benchmark_v1.json`으로 마무리됩니다. 이는 **기대 출력 구조이며 CUDA 측정 수치는 아직 제시하지 않습니다.** 보고서는 `~/llm-lab/serving_benchmark_v1.json`에 새로 만들고 기존 파일이 있으면 요청을 보내기 전에 중단합니다. 재측정은 `--output ../serving_benchmark_v2.json`처럼 새 이름을 사용합니다. 호출 실패·측정값 누락은 성공으로 집계하지 않고 오류로 중단합니다. 실패 전 요청 행은 터미널에 남지만 성공 보고서는 만들지 않습니다.
+`SUMMARY` 뒤에 지연의 중앙값·최솟값·최댓값과 두 종류의 토큰/초가 나오고 `SAVED ../serving_benchmark_v1.json`으로 마무리됩니다. 이는 기대 출력 구조입니다. 별도로 확인한 CUDA 실행 예시는6절에 구분합니다. 보고서는 `~/llm-lab/serving_benchmark_v1.json`에 새로 만들고 기존 파일이 있으면 요청을 보내기 전에 중단합니다. 재측정은 `--output ../serving_benchmark_v2.json`처럼 새 이름을 사용합니다. 호출 실패·측정값 누락은 성공으로 집계하지 않고 오류로 중단합니다. 실패 전 요청 행은 터미널에 남지만 성공 보고서는 만들지 않습니다.
 
 ### 결과 다시 읽기
 
@@ -350,7 +350,32 @@ python source/21-api-serving/test_serving.py --integration --metrics
 python source/check_guide.py
 ```
 
-검사 소스: [test_benchmark.py](source/21-api-serving/test_benchmark.py), [test_serving.py](source/21-api-serving/test_serving.py). **CUDA 동기화·GPU 메모리 측정 경로와 학습 어댑터의 A10 시간은 VM 출력으로 별도 확인해야 합니다.** CPU 성공을 CUDA 성능 검증으로 바꾸지 않습니다. 모델 로딩 시간·로딩 중 peak·TTFT·동시 부하·다른 양자화와 메모리 절감 비교·운영 안정성은 이번 측정 범위가 아닙니다.
+검사 소스: [test_benchmark.py](source/21-api-serving/test_benchmark.py), [test_serving.py](source/21-api-serving/test_serving.py). 위 CPU 코드 검증과 아래 CUDA VM 측정은 별도 근거입니다. 모델 로딩 시간·로딩 중 peak·TTFT·동시 부하·다른 양자화와 메모리 절감 비교·운영 안정성은 이번 측정 범위가 아닙니다.
+
+### CUDA VM의 실제 순차 측정 예시
+
+Ubuntu A10 실습 환경의 실행 로그에서 워밍업2건과 측정10건, `SAVED ../serving_benchmark_v1.json`을 확인했습니다. 두 질문의 입력은 각각41·40토큰이고 모든 응답은 새8토큰씩입니다. 측정10건의 실제 생성 토큰 합은80이며, 원문 요청별 값으로 요약을 다시 계산한 결과 아래 로그와 정확히 일치했습니다. CPU 미학습 fixture의 속도와 합치거나 환경 간 배율을 주장하지 않습니다.
+
+```text
+SUMMARY {"requests": 10, "e2e_median_seconds": 0.4477258074985002, "e2e_min_seconds": 0.44599267799640074, "e2e_max_seconds": 0.45072476199129596, "generation_tokens_per_second": 17.930662174202777, "e2e_tokens_per_second": 17.857251012975183}
+SAVED ../serving_benchmark_v1.json
+```
+
+| 지표 | 실제 결과 |
+|---|---|
+| HTTP 지연 중앙값 | 447.73ms |
+| HTTP 지연 최솟값~최댓값 | 445.99~450.72ms |
+| 생성 구간 속도 | 17.93토큰/초 |
+| HTTP 왕복 포함 속도 | 17.86토큰/초 |
+| 생성 전 allocated | 측정10건 모두169.92MiB |
+| 생성 구간 peak allocated | gpu질문176.04MiB / network질문175.96MiB |
+| 생성 전 reserved / 생성 구간 peak reserved | 측정10건 모두316.00MiB /316.00MiB |
+
+표는 초→ms와 bytes→MiB로 환산해 소수 둘째 자리까지 표시했습니다. 첫 워밍업의 HTTP 지연은714.11ms였지만 이는 요약에서 제외됩니다. 이번 짧은 반복 구간의 지연과 메모리 값은 비슷하게 유지됐습니다. 이것만으로 워밍업 차이의 원인, 장시간 안정성, 메모리 누수 부재나 최대 처리량을 입증하지는 않습니다.
+
+생성문은 각각 `Device GPU status:\n\nDevice GPU`와 `Device network status:\n\nDevice network`로 반복됐으며, 한 단어 정답 `failed`·`healthy`는 여전히 생성하지 못했습니다. 성능 측정 성공을 품질 개선으로 읽지 않습니다. `reserved`316MiB는 모델 파일 크기·GPU 전체 사용량·다른 정밀도 대비 절감량이 아닙니다.
+
+저장은 위 `SAVED` 로그로 확인한 범위이며 저장 파일을 다시 읽은 별도 출력은 이 로그에 포함하지 않습니다. 측정이 끝난 뒤에도 터미널 A의 서버는 계속 실행되므로5절의 Ctrl+C로 종료합니다. 이 숫자는 해당 입력·설정·실행 환경의 소규모 관찰이며 재실행 시 달라질 수 있습니다.
 
 ## 7. 복습
 
