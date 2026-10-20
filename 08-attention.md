@@ -675,6 +675,95 @@ status: 허용=['gpu', 'current', 'status']
 - [ ] `status`의 출력이 앞 실습과 같은 이유를 설명한다.
 - [ ] mask만 추가한 계산과 학습된 문장 생성기를 구분한다.
 
-이것은 고정된 교육용 입력의 단일 Attention 계산입니다. padding mask·batch·여러 head·출력 투영·위치 표현·학습은 구현하지 않습니다. 토큰 내용이 아니라 위치 번호로 허용 범위를 정하며, 위치 표현 자체를 벡터에 더하는 실습과는 다릅니다. 후속 주제로 위치 정보의 역할을 연결할 수 있습니다.
+이것은 고정된 교육용 입력의 단일 Attention 계산입니다. 이 절에서는 padding mask·batch·여러 head·출력 투영·위치 표현·학습은 구현하지 않습니다. 토큰 내용이 아니라 위치 번호로 허용 범위를 정하며, 다음 절의 위치 표현을 벡터에 더하는 실습과는 다릅니다.
+
+## 11. 후속 실습 · 토큰 벡터에 위치 정보 더하기
+
+### 목표와 앞 실습 연결
+
+causal mask는 **어디까지 참고할 수 있는가**를 정했습니다. 이번에는 **같은 토큰이 몇 번째 위치에 놓였는가**를 입력 벡터에 반영하는 덧셈만 확인합니다. 두 장치는 역할이 다릅니다. 위치 벡터를 더한다고 미래 토큰 참조가 차단되지는 않습니다.
+
+토큰별 같은 벡터를 조회하면 같은 `gpu`는 어디에 놓여도 같은 벡터를 얻습니다. 이전 QKV 변환도 모든 토큰에 같은 행렬을 적용하므로 같은 입력에서는 같은 QKV가 나옵니다. 다만 causal mask가 허용하는 문맥은 위치마다 다르므로 **위치 표현이 없으면 Attention 출력도 항상 같다**고 단정하면 안 됩니다.
+
+원래 Transformer는 입력 임베딩과 같은 차원의 위치 표현을 더합니다. 근거: *Attention Is All You Need*, §3.5, arXiv:1706.03762. 여기서는 논문의 sin·cos 공식을 구현하지 않고 **직접 정한 위치 벡터 표**로 덧셈 원리만 봅니다. 학습된 임베딩이나 위치를 학습한 모델이 아닙니다.
+
+같은 토큰을 두 위치에서 비교하려고 입력 순서를 `gpu current status`에서 **`gpu current gpu`**로 바꿉니다. `gpu`·`current`의 교육용 토큰 벡터는 그대로입니다. 이 절은 10절과 Attention 출력을 비교하는 실험이 아니라, 반복된 토큰에 위치 정보를 넣는 독립 계산입니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**의 기존 `~/llm-lab/source`에서 실행합니다. Python 3.10 이상만 필요하며 패키지·GPU·모델 파일이 필요하지 않습니다. 파일 읽기·쓰기와 학습은 없습니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지의 코드 실행입니다.
+
+**소스:** [07-position-input.py](source/08-attention/07-position-input.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+# 교육용 토큰·위치 벡터입니다. 학습된 임베딩이 아닙니다.
+# 같은 토큰을 비교하려고 앞 실습의 문장을 gpu current gpu로 바꿉니다.
+tokens = ["gpu", "current", "gpu"]
+token_vectors = {"gpu": [1.0, 0.0], "current": [0.0, 1.0]}
+# ponytail: 위치 세 개 전용 수동 표; 실제 모델에서는 위치 표현 방식을 별도로 정합니다.
+position_vectors = [[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]]
+inputs = [token_vectors[token][:] for token in tokens]
+combined = [[x + p for x, p in zip(vector, position, strict=True)]
+            for vector, position in zip(inputs, position_vectors, strict=True)]
+
+assert inputs == [[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]]
+assert combined == [[1.0, 0.0], [0.0, 2.0], [1.0, 2.0]]
+assert inputs[0] == inputs[2]
+assert combined[0] != combined[2]
+assert all(len(vector) == 2 for vector in combined)
+for index, (token, vector, position, result) in enumerate(
+        zip(tokens, inputs, position_vectors, combined, strict=True)):
+    print(f"위치 {index}: {token}")
+    print(f"  토큰 벡터: {vector}, 위치 벡터: {position}")
+    print("  합친 입력:", result)
+print("검사 통과: 같은 gpu 벡터도 위치 벡터를 더하면 입력이 달라집니다")
+PY
+```
+
+### 코드와 차원 해설
+
+- `tokens`는 토큰의 순서이고, `token_vectors`는 토큰 이름으로 벡터를 조회하는 사전입니다. 두 `gpu`는 같은 `[1, 0]`을 사용합니다. `[:]`는 원래 표를 바꾸지 않도록 리스트를 복사합니다.
+- `position_vectors`는 토큰 종류가 아니라 **위치 0·1·2**에 대응합니다. 첫 벡터를 `[0, 0]`으로 둔 것은 이 예시의 선택일 뿐 필수 규칙이 아닙니다.
+- 바깥 `zip`은 각 토큰 벡터와 해당 위치 벡터를 짝짓고, 안쪽 `zip`은 같은 좌표끼리 짝지어 더합니다. `strict=True`는 짝의 개수가 다르면 오류를 냅니다.
+- `combined`는 이어 붙이기가 아닙니다. 토큰·위치 벡터가 각각 숫자 두 개이므로 **합친 결과도 두 개**, 전체 모양은 `3×2`입니다. 숫자 네 개가 되지 않습니다.
+- `assert`의 고정 숫자는 직접 계산한 검사 기준이고, `combined` 계산에 정답을 넣지 않습니다. 원래 두 `gpu` 입력이 같고 합친 입력은 다른지도 확인합니다.
+
+```text
+위치 0의 gpu: [1, 0] + [0, 0] = [1, 0]
+위치 2의 gpu: [1, 0] + [0, 2] = [1, 2]
+```
+
+위치 벡터는 단어 의미나 Attention 비중이 아닙니다. 이 단순한 표는 덧셈을 드러내기 위한 예시이며, 일반적인 단어·위치 조합이 언제나 서로 다른 벡터가 된다는 보장도 아닙니다.
+
+### 로컬 산술 실행 예시
+
+아래는 정본 코드를 Python으로 실행해 assert를 통과한 출력입니다. 다음 토큰 예측·학습 결과가 아닙니다.
+
+```text
+위치 0: gpu
+  토큰 벡터: [1.0, 0.0], 위치 벡터: [0.0, 0.0]
+  합친 입력: [1.0, 0.0]
+위치 1: current
+  토큰 벡터: [0.0, 1.0], 위치 벡터: [0.0, 1.0]
+  합친 입력: [0.0, 2.0]
+위치 2: gpu
+  토큰 벡터: [1.0, 0.0], 위치 벡터: [0.0, 2.0]
+  합친 입력: [1.0, 2.0]
+검사 통과: 같은 gpu 벡터도 위치 벡터를 더하면 입력이 달라집니다
+```
+
+### 한계·복습과 다음 연결
+
+- [ ] 같은 `gpu`의 토큰 벡터는 같지만 합친 입력은 다른 이유를 설명한다.
+- [ ] 벡터 덧셈과 이어 붙이기를 구분한다.
+- [ ] 위치 표현과 causal mask의 역할을 구분한다.
+- [ ] 이 수동 표를 학습된 위치 표현이나 논문의 sin·cos 공식으로 부르지 않는다.
+
+이번 코드는 위치 세 개의 덧셈만 계산합니다. QKV·Attention 출력 재계산·sin·cos·위치 파라미터 학습·모델 저장은 포함하지 않습니다. 다음에는 합친 입력에서 QKV와 causal Attention 출력을 계산하는 연결을 살펴볼 수 있습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)

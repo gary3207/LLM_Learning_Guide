@@ -95,7 +95,7 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)에서 펼치기와 직접 정한 비중의 가중합을 비교한 뒤, 교육용 Query·Key의 비중 계산과 Value 가중합까지 연결합니다. 이어지는 후속 실습은 입력에서 직접 정한 선형 변환으로 Q·K·V를 만들고 모든 위치의 Self-Attention 출력까지 계산한 후, causal mask로 뒤 위치의 참조를 제한합니다. 모델 학습·저장 없이 Python 표준 라이브러리만 사용합니다. 위치 표현·변환 계수의 실제 학습과 Transformer 구현은 후속 범위입니다.
+[08장 Attention 입문](08-attention.md)에서 펼치기와 직접 정한 비중의 가중합을 비교한 뒤, 교육용 Query·Key의 비중 계산과 Value 가중합까지 연결합니다. 이어지는 후속 실습은 입력에서 직접 정한 선형 변환으로 Q·K·V를 만들고 모든 위치의 Self-Attention 출력까지 계산한 후, causal mask로 뒤 위치의 참조를 제한합니다. 별도 실습에서는 같은 토큰에 위치별 벡터를 더해 입력을 비교합니다. 모델 학습·저장 없이 Python 표준 라이브러리만 사용합니다. 위치 정보가 포함된 Attention 재연결·변환 계수의 실제 학습과 Transformer 구현은 후속 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 
