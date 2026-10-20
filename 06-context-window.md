@@ -2,7 +2,7 @@
 
 [← 이전: 다음 토큰 예측](05-next-token.md) · [학습 목차](README.md) · [다음: 학습 점검과 다음 단계 →](07-resume.md)
 
-마지막 토큰 하나만으로 구별할 수 없는 예문을 만들고, 입력을 두 토큰으로 늘려 작은 신경망을 학습합니다. 앞 장과 같은 Python·PyTorch 가상환경에서 진행하며, 작업 폴더는 `~/llm-lab/source`입니다. 확장 연습에서는 두 토큰과 세 토큰의 정보 차이를 비교한 뒤, 세 토큰 모델의 학습·저장까지 진행합니다.
+마지막 토큰 하나만으로 구별할 수 없는 예문을 만들고, 입력을 두 토큰으로 늘려 작은 신경망을 학습합니다. 앞 장과 같은 Python·PyTorch 가상환경에서 진행하며, 작업 폴더는 `~/llm-lab/source`입니다. 확장 연습에서는 두 토큰과 세 토큰의 정보 차이를 비교한 뒤, 세 토큰 모델의 학습·저장·복원·생성을 진행합니다.
 
 ## 이 장의 목표
 
@@ -18,7 +18,8 @@
 | 2 | 두 토큰 모델 학습·저장 | 학습 쌍 예측과 loss 확인 |
 | 3 | 두 토큰 모델 복원·생성 | 문맥 이동과 종료·길이 제한 확인 |
 | 확장 연습 | 두 토큰·세 토큰별 정답 빈도 비교 | 입력 범위를 늘렸을 때 충돌이 사라지는지 확인 |
-| 확장 2/3 | 세 토큰 모델 학습·별도 저장 | 학습 쌍 예측·loss·저장 확인, 복원·생성은 후속 단계 |
+| 확장 2/3 | 세 토큰 모델 학습·별도 저장 | 학습 쌍 예측·loss·저장 확인 |
+| 확장 3/3 | 세 토큰 모델 복원·생성 | 문맥 이동·문장 재현·종료·길이 제한 확인 |
 
 아래 출력은 **실행 예시**입니다. 학습 loss와 생성 결과는 환경·난수 초기화·저장된 가중치에 따라 달라질 수 있습니다. seed를 고정해도 모든 환경에서 숫자가 완전히 같다고 보장하지 않습니다. 빈도 비교는 신경망 결과가 아니라 주어진 문자열의 개수를 계산한 것입니다.
 
@@ -643,7 +644,7 @@ PY
 
 ### 실행 결과에서 확인할 것
 
-아래는 **성공 시 확인할 조건**이며, 실제 실행 로그나 이미 측정한 수치가 아닙니다. loss 숫자는 실행 후 확인합니다.
+실행 예시에서 학습 전 loss는 `2.3490`, 학습 후 표시값은 `0.0000`, 학습 쌍 정확도는 `8/8`이었습니다. 저장 경로 예시는 `/home/ubuntu/llm-lab/next_token_context3.pt`입니다. 환경과 초기화 조건에 따라 수치는 달라질 수 있습니다. 복원·생성의 성공 여부는 다음 단계에서 별도로 확인합니다.
 
 - `gpu current status`의 예측이 `failed`, `network current status`의 예측이 `healthy`인지 확인합니다.
 - `학습 쌍 정확도: 8/8`과 새 모델의 `저장 완료` 출력을 확인합니다.
@@ -657,6 +658,125 @@ PY
 - 왜 `<bos>` 두 개가 필요한가요?
 - 문맥 길이를 바꿀 때 왜 데이터 슬라이스뿐 아니라 `Linear` 입력 크기도 바꾸나요?
 - 저장한 `context_size=3`과 같은 구조로 복원해야 하는 이유는 무엇인가요?
+
+## 확장 3/3단계 · 저장한 세 토큰 모델로 생성하기
+
+### 목표와 실행 위치
+
+**OCI VM의 기존 `(.venv)` 터미널**, `~/llm-lab/source`에서 실행합니다. 앞 단계의 `~/llm-lab/next_token_context3.pt`가 필요합니다. 신뢰하는 본인 실습 파일만 불러옵니다. 아래 코드는 CPU에 가중치를 복원하여 추론하며, 재학습·체크포인트 저장은 하지 않습니다.
+
+**소스:** [06-generate-context3.py](source/06-context-window/06-generate-context3.py)
+
+```bash
+cd ~/llm-lab/source
+
+python - <<'PY'
+from pathlib import Path
+import torch
+from torch import nn
+
+path = Path.home() / "llm-lab/next_token_context3.pt"
+checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+
+vocab = checkpoint["vocab"]
+assert isinstance(vocab, list) and vocab
+assert all(isinstance(token, str) for token in vocab)
+assert len(vocab) == len(set(vocab))
+assert {"<bos>", "<eos>", "gpu", "network", "current", "status", "failed", "healthy"} == set(vocab)
+assert checkpoint["context_size"] == 3
+assert checkpoint["embedding_dim"] == 8
+
+to_id = {token: i for i, token in enumerate(vocab)}
+model = nn.Sequential(
+    nn.Embedding(len(vocab), 8),
+    nn.Flatten(start_dim=1),
+    nn.Linear(24, len(vocab)),
+)
+model.load_state_dict(checkpoint["model_state_dict"])
+model.eval()
+
+
+def generate(start, max_new_tokens=10):
+    if not isinstance(start, str) or start not in ("gpu", "network"):
+        raise ValueError("이번 실습의 시작 토큰은 gpu 또는 network입니다")
+    if type(max_new_tokens) is not int or max_new_tokens < 1:
+        raise ValueError("max_new_tokens는 양의 정수여야 합니다")
+
+    history = ["<bos>", "<bos>", start]
+    with torch.no_grad():
+        for _ in range(max_new_tokens):
+            context = history[-3:]
+            x = torch.tensor([[to_id[t] for t in context]])
+            scores = model(x)
+            assert torch.isfinite(scores).all().item()
+            next_token = vocab[scores.argmax(dim=1).item()]
+
+            if next_token == "<eos>":
+                return " ".join(history[2:]), "<eos>"
+            if next_token == "<bos>":
+                raise RuntimeError("생성 도중 시작 토큰이 나왔습니다")
+            history.append(next_token)
+
+    return " ".join(history[2:]), "길이 제한"
+
+
+for start, expected in [
+    ("gpu", "gpu current status failed"),
+    ("network", "network current status healthy"),
+]:
+    text, reason = generate(start)
+    print(f"{start} -> {text} | 종료: {reason}")
+    assert text == expected and reason == "<eos>"
+    limited = generate(start, max_new_tokens=1)
+    assert limited == (f"{start} current", "길이 제한")
+
+print("검사 통과: 세 토큰 문맥별 문장 재현, 종료 토큰, 생성 길이 제한")
+print("재학습·모델 파일 변경 없음")
+PY
+```
+
+### 코드 해설 · 학습 때와 같은 입력을 유지하기
+
+| 코드 | 역할 |
+|---|---|
+| `map_location="cpu", weights_only=True` | 신뢰하는 체크포인트를 CPU로 로드하고 제한된 로드 방식을 사용 |
+| 어휘·`context_size`·`embedding_dim` 검사 | 다른 실습 모델을 잘못 불러오면 중단 |
+| `load_state_dict` | 학습 때와 같은 구조에 저장된 가중치 적용 |
+| `eval()`·`no_grad()` | 평가 모드로 전환하고 기울기 계산 없이 추론 |
+| `["<bos>", "<bos>", start]` | 학습 때처럼 입력 세 칸을 준비 |
+| `history[-3:]` | 전체 기록 중 마지막 세 토큰만 모델에 입력 |
+| `argmax` | 모델 점수가 가장 높은 토큰 하나를 선택 |
+| `history[2:]` | 표시용 문장에서 맨 앞 시작 표시 두 개만 제거 |
+| `max_new_tokens=1` 검사 | 양쪽 시작 단어에서 한 토큰만 생성하고 길이 제한으로 끝나는지 확인 |
+
+```text
+전체 기록                           모델 입력                다음 선택
+<bos> <bos> gpu                     <bos> <bos> gpu          current
+<bos> <bos> gpu current             <bos> gpu current        status
+<bos> <bos> gpu current status      gpu current status       failed
+<bos> <bos> gpu current status failed  current status failed  <eos>
+```
+
+`expected`는 생성 후 비교할 정답입니다. 생성 함수는 이 값을 보지 않으며 모델 점수로 다음 토큰을 고릅니다. 종료 토큰은 결과 문자열에 붙이지 않습니다. `max_new_tokens`는 종료 토큰을 예측하는 회차도 포함한 예측 횟수의 상한입니다.
+
+### 성공 시 예상 출력과 해석
+
+다음은 **검사 조건으로부터 예상한 출력**이며, 아직 측정된 복원·생성 로그가 아닙니다. 실제 성공 여부는 실행 출력으로 확인합니다.
+
+```text
+gpu -> gpu current status failed | 종료: <eos>
+network -> network current status healthy | 종료: <eos>
+검사 통과: 세 토큰 문맥별 문장 재현, 종료 토큰, 생성 길이 제한
+재학습·모델 파일 변경 없음
+```
+
+성공해도 두 학습 문장의 재현과 종료 동작을 확인한 것입니다. 새로운 문장에 대한 일반화나 실제 자원 상태 판단을 검증한 것은 아닙니다. 이 모델은 Attention·Transformer가 아니라 고정된 세 토큰을 펼쳐 쓰는 작은 신경망입니다.
+
+### 복습
+
+- 기록이 길어져도 모델이 보는 것은 왜 마지막 세 토큰뿐인가요?
+- `<bos>` 두 개를 생성 결과에서 제외하는 코드는 어느 줄인가요?
+- 학습 쌍 8/8과 별도 프로세스의 복원·생성 검사는 무엇이 다른가요?
 
 ---
 
