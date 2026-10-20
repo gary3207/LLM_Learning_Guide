@@ -1,6 +1,6 @@
 # 11 · 작은 언어 모델 저장·복원·생성
 
-[← 이전: 임베딩과 다음 토큰 학습](10-embedding-next-token.md) · [목차](README.md)
+[← 이전: 임베딩과 다음 토큰 학습](10-embedding-next-token.md) · [목차](README.md) · [다음: 새 입력 관찰 →](12-input-probes.md)
 
 ## 1. 목표와 선행 조건
 
@@ -248,7 +248,7 @@ network current status healthy <eos> | 종료: eos
 - 단일-head·한 블록·입력 최대4개·4좌표·두 학습 예문 전용입니다.
 - 별도 평가 데이터·sampling·긴 문맥·학습 재개·서빙은 포함하지 않습니다.
 - 복원 성공과 생성 성공은 별개입니다. 저장 출력만으로 생성까지 완료했다고 판단하지 않습니다.
-- 다음 확장에서는 별도 데이터 평가나 더 긴 문맥을 목표에 맞게 정합니다.
+- [12장](12-input-probes.md)에서는 모델을 고정하고 새 입력의 반응을 관찰합니다. 별도 정답 데이터 평가나 더 긴 문맥은 후속 범위입니다.
 
 ## 6. 복습
 
@@ -261,4 +261,4 @@ network current status healthy <eos> | 종료: eos
 
 공식 참고: [PyTorch 저장·복원 튜토리얼](https://docs.pytorch.org/tutorials/beginner/saving_loading_models).
 
-[← 이전: 임베딩과 다음 토큰 학습](10-embedding-next-token.md) · [목차](README.md)
+[← 이전: 임베딩과 다음 토큰 학습](10-embedding-next-token.md) · [목차](README.md) · [다음: 새 입력 관찰 →](12-input-probes.md)
