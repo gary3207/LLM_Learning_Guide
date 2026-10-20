@@ -764,6 +764,139 @@ PY
 - [ ] 위치 표현과 causal mask의 역할을 구분한다.
 - [ ] 이 수동 표를 학습된 위치 표현이나 논문의 sin·cos 공식으로 부르지 않는다.
 
-이번 코드는 위치 세 개의 덧셈만 계산합니다. QKV·Attention 출력 재계산·sin·cos·위치 파라미터 학습·모델 저장은 포함하지 않습니다. 다음에는 합친 입력에서 QKV와 causal Attention 출력을 계산하는 연결을 살펴볼 수 있습니다.
+이 절의 코드는 위치 세 개의 덧셈만 계산합니다. QKV·Attention 출력 재계산·sin·cos·위치 파라미터 학습·모델 저장은 포함하지 않습니다. 다음 절에서는 합친 입력에서 QKV와 causal Attention 출력을 계산합니다.
+
+## 12. 후속 실습 · 위치 포함 입력에서 causal Attention 출력까지
+
+### 목표와 계산 흐름
+
+11절의 **`gpu current gpu`·토큰 벡터·위치 벡터를 그대로 유지**하고, 10절에서 사용한 변환 행렬과 causal mask 계산을 연결합니다. 새 위치 표현 방식을 만들거나 계수를 학습하는 실습이 아닙니다.
+
+```text
+토큰 벡터 + 위치 벡터 → combined (3×2)
+combined → 같은 변환 행렬 Wq·Wk·Wv → Q·K·V (각 3×2)
+각 Q와 모든 K의 내적 → sqrt(2)로 나누기 → 미래 위치 -inf
+softmax → V 가중합 → 각 위치 출력 (숫자 두 개)
+```
+
+Q·K·V는 원래 토큰 벡터 `inputs`가 아니라 **위치 정보를 더한 `combined`**에서 만듭니다. 위치 표현은 입력을 바꾸고, causal mask는 참조 범위를 제한합니다. 둘 중 하나가 다른 하나를 대신하지 않습니다. 계산 근거: *Attention Is All You Need*, §3.2.1–3.2.3·§3.5, arXiv:1706.03762. 수동 위치 표는 논문의 sin·cos 구현이 아닙니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**, 기존 `~/llm-lab/source` 가상환경에서 실행합니다. `cd`는 폴더 이동, `source`는 가상환경 활성화, `python -`는 마지막 `PY`까지의 코드 실행입니다. Python 3.10 이상과 표준 라이브러리만 필요합니다. 앞 실습의 변수가 없어도 실행되며 패키지 설치·GPU·파일 읽기·쓰기·학습은 없습니다.
+
+**소스:** [08-position-attention.py](source/08-attention/08-position-attention.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, sqrt
+
+# 앞 실습과 같은 교육용 토큰·위치 벡터입니다. 학습된 값이 아닙니다.
+tokens = ["gpu", "current", "gpu"]
+token_vectors = {"gpu": [1.0, 0.0], "current": [0.0, 1.0]}
+position_vectors = [[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]]
+inputs = [token_vectors[token][:] for token in tokens]
+combined = [[x + p for x, p in zip(vector, position, strict=True)]
+            for vector, position in zip(inputs, position_vectors, strict=True)]
+assert combined == [[1.0, 0.0], [0.0, 2.0], [1.0, 2.0]]
+# 이전 QKV 실습과 같은 변환 행렬입니다.
+wq = [[1.0, 0.0], [1.0, 1.0]]
+wk = [[0.0, 1.0], [1.0, 0.0]]
+wv = [[2.0, 0.0], [0.0, 3.0]]
+
+
+def project(x, matrix):
+    # ponytail: 2차원 행벡터 전용; 차원 확장은 PyTorch 행렬곱으로 전환합니다.
+    return [x[0] * matrix[0][column] + x[1] * matrix[1][column]
+            for column in range(2)]
+
+
+queries = [project(x, wq) for x in combined]
+keys = [project(x, wk) for x in combined]
+values = [project(x, wv) for x in combined]
+assert queries == [[1.0, 0.0], [2.0, 2.0], [3.0, 2.0]]
+assert keys == [[0.0, 1.0], [2.0, 0.0], [2.0, 1.0]]
+assert values == [[2.0, 0.0], [0.0, 6.0], [2.0, 6.0]]
+# 허용된 앞쪽 토큰만의 독립 Decimal 계산 기준이며 출력 계산에는 쓰지 않습니다.
+expected_weights = [[1.0, 0.0, 0.0], [0.1955703174930431, 0.8044296825069569, 0.0],
+                    [0.011427238405401788, 0.19333548885002997, 0.7952372727445682]]
+expected_outputs = [[2.0, 0.0], [0.3911406349860862, 4.826578095041741],
+                    [1.61332902229994, 5.931436569567589]]
+print("참고할 위치·토큰:", list(enumerate(tokens)))
+for position, (token, query) in enumerate(zip(tokens, queries, strict=True)):
+    scores = [sum(q * k for q, k in zip(query, key, strict=True)) for key in keys]
+    scaled = [score / sqrt(len(query)) for score in scores]
+    masked = [score if key_position <= position else float("-inf")
+              for key_position, score in enumerate(scaled)]
+    exps = [exp(score - max(masked)) for score in masked]
+    weights = [number / sum(exps) for number in exps]
+    assert isclose(sum(weights), 1.0)
+    assert all(weight == 0.0 for weight in weights[position + 1:])
+    assert all(weight > 0.0 for weight in weights[:position + 1])
+    assert all(isclose(a, b, abs_tol=1e-12)
+               for a, b in zip(weights, expected_weights[position], strict=True))
+    output = [sum(weight * value[column] for weight, value in zip(weights, values, strict=True))
+              for column in range(len(values[0]))]
+    assert all(isclose(a, b, abs_tol=1e-12)
+               for a, b in zip(output, expected_outputs[position], strict=True))
+    print(f"위치 {position}: {token}, 합친 입력={combined[position]}")
+    print(f"  Q={query}, K={keys[position]}, V={values[position]}")
+    print("  내적 점수:", scores)
+    print("  비중:", [round(number, 4) for number in weights])
+    print("  출력 벡터:", [round(number, 4) for number in output])
+print("검사 통과: 위치 포함 입력에서 Q·K·V와 causal Attention 출력을 계산했습니다")
+PY
+```
+
+### 코드와 차원 해설
+
+- `combined`까지는 11절 계산입니다. `project`와 세 행렬, 내적·softmax·mask·가중합은 앞 실습 방식을 재사용합니다. 복사 실행을 위해 코드를 함께 두며 이전 파일을 불러오지 않습니다.
+- 같은 토큰도 위치를 더한 입력이 달라져 이번 예제에서는 Q·K·V가 달라집니다. 세 행렬은 토큰·위치마다 새로 정하지 않고 모든 위치에서 공유합니다.
+- 출력의 `Q=…, K=…, V=…`는 **해당 위치 자체의** QKV입니다. 하지만 그 아래 내적 점수·비중 세 개는 선택한 Q를 위치 0·1·2의 **모든 K**와 비교한 결과입니다. 두 `gpu`를 같은 항목으로 합치지 않습니다.
+- 미래 위치의 내적 점수는 표시되지만 softmax 전 `-inf`로 가립니다. 가려진 위치는 비중 0이라 V 가중합에 참여하지 않습니다.
+- 비중 세 개의 합은 반올림 전 1입니다. 출력은 V를 섞은 2차원 정보 벡터이며 좌표 합이 1일 필요가 없습니다. 전체 출력 모양도 `3×2`입니다.
+- `expected_weights`, `expected_outputs`는 허용된 앞쪽 토큰만으로 별도 고정밀 계산한 검사 기준입니다. 학습 정답이나 출력 생성용 값이 아닙니다.
+
+예를 들어 위치 2의 `gpu`는 합친 입력 `[1, 2]`에서 `Q=[3, 2]`, `K=[2, 1]`, `V=[2, 6]`을 얻습니다. 그 Q와 전체 K의 내적은 `[2, 6, 8]`입니다. 마지막 위치는 세 위치를 모두 허용하므로, 비중 세 개로 V 세 개를 가중합합니다.
+
+### 로컬 산술 실행 예시
+
+아래는 정본 소스를 로컬 Python으로 실행해 assert를 통과한 출력입니다. 학습·다음 단어 예측 결과가 아닙니다.
+
+```text
+참고할 위치·토큰: [(0, 'gpu'), (1, 'current'), (2, 'gpu')]
+위치 0: gpu, 합친 입력=[1.0, 0.0]
+  Q=[1.0, 0.0], K=[0.0, 1.0], V=[2.0, 0.0]
+  내적 점수: [0.0, 2.0, 2.0]
+  비중: [1.0, 0.0, 0.0]
+  출력 벡터: [2.0, 0.0]
+위치 1: current, 합친 입력=[0.0, 2.0]
+  Q=[2.0, 2.0], K=[2.0, 0.0], V=[0.0, 6.0]
+  내적 점수: [2.0, 4.0, 6.0]
+  비중: [0.1956, 0.8044, 0.0]
+  출력 벡터: [0.3911, 4.8266]
+위치 2: gpu, 합친 입력=[1.0, 2.0]
+  Q=[3.0, 2.0], K=[2.0, 1.0], V=[2.0, 6.0]
+  내적 점수: [2.0, 6.0, 8.0]
+  비중: [0.0114, 0.1933, 0.7952]
+  출력 벡터: [1.6133, 5.9314]
+검사 통과: 위치 포함 입력에서 Q·K·V와 causal Attention 출력을 계산했습니다
+```
+
+두 `gpu`의 출력은 다르지만 **위치 표현 때문만이라고 해석하지 않습니다.** 위치 0과 2는 허용되는 문맥도 다릅니다. 또한 10절과는 마지막 토큰 자체도 다르므로 10절 수치와 비교해 위치 표현의 순수 효과를 측정한 실험이 아닙니다.
+
+### 한계·복습과 다음 연결
+
+- [ ] QKV를 `inputs`가 아니라 `combined`에서 만드는 이유를 설명한다.
+- [ ] 위치 2의 Q `[3, 2]`와 전체 내적 `[2, 6, 8]`을 계산한다.
+- [ ] 같은 토큰이 두 번 있어도 비중은 위치별로 세 개임을 구분한다.
+- [ ] 위치 1의 세 번째 내적 점수는 6인데도 비중은 0인 이유를 설명한다.
+- [ ] 비중과 정보 벡터, 다음 토큰 확률을 구분한다.
+
+수동 위치 표·단일 head 산술 계산입니다. 출력 투영·잔차 연결·정규화·여러 head·loss·역전파·모델 저장은 구현하지 않습니다. 다음 연결 후보는 이 정보 벡터를 어휘별 점수로 바꾸는 출력층입니다. 현재 코드는 단어를 선택하거나 생성하지 않습니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
