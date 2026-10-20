@@ -1307,6 +1307,133 @@ W[1,2] → <eos>: 기울기=+0.0480, 수치검사=+0.0480
 - [ ] 기울기의 크기를 가중치 자체의 크기나 중요도와 혼동하지 않는다.
 - [ ] 검사할 복사본 변경과 원본 가중치 갱신을 구분한다.
 
-이번에는 출력 행렬까지 연쇄법칙을 적용했습니다. hidden에 대한 기울기·Attention 파라미터의 기울기·자동 미분·학습률·optimizer·가중치 갱신·저장은 구현하지 않습니다. 다음에는 이 가중치 기울기를 사용해 출력 행렬을 한 번 갱신하는 계산으로 연결할 수 있습니다.
+이번에는 출력 행렬까지 연쇄법칙을 적용했습니다. 이 절에서는 hidden에 대한 기울기·Attention 파라미터의 기울기·자동 미분·학습률·optimizer·가중치 갱신·저장을 구현하지 않습니다. 다음 절에서는 이 가중치 기울기로 출력 행렬을 한 번 갱신합니다.
+
+## 17. 후속 실습 · 출력 행렬을 한 번 갱신하기
+
+### 목표와 갱신 규칙
+
+16절에서 구한 가중치 기울기를 **실제 가중치 변화**로 연결합니다. 앞과 같은 고정 `hidden`, `2×3` 출력 행렬, 어휘 순서, 교육용 정답 `failed`를 사용하며 bias는 없습니다. 행벡터 규약 `logits = hidden × W`를 유지합니다.
+
+```text
+갱신 전 W → logits → 확률·loss → d_logits → d_weights
+새 W[r,c] = 기존 W[r,c] - 학습률 × d_weights[r,c]
+새 W → logits 재계산 → 새 확률·loss
+```
+
+학습률은 한 번에 얼마나 움직일지 정하는 양수이며 이번에는 `0.01`입니다. 기울기는 loss가 증가하는 방향을 나타내므로 **빼서 반대 방향으로 이동**합니다. 예를 들어 `W[0,0]`의 기울기는 약 `-1.2845`이므로 `1.0 - 0.01 × (-1.2845)`가 되어 가중치가 증가합니다. 표시 숫자가 아닌 반올림 전 기울기를 사용합니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**의 기존 `~/llm-lab/source`에서 실행합니다. Python 3.10 이상과 표준 라이브러리만 필요합니다. 앞 실행의 변수가 없어도 됩니다. `cd`는 폴더 이동, `source`는 기존 가상환경 활성화, `python -`는 마지막 `PY`까지의 코드를 실행합니다. 설치·GPU·파일 읽기·쓰기는 없습니다. 새 행렬은 메모리에서만 만들고 이전 행렬은 비교용으로 보존합니다.
+
+**소스:** [13-output-weight-step.py](source/08-attention/13-output-weight-step.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import exp, isclose, isfinite, log
+
+# 앞 실습의 고정 입력·출력 행렬·교육용 정답을 유지합니다.
+hidden = [1.61332902229994, 5.931436569567589]
+vocabulary = ["failed", "healthy", "<eos>"]
+w_vocab = [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0]]  # 2×3, bias 없음
+original = [row[:] for row in w_vocab]
+target = "failed"
+learning_rate = 0.01
+assert target in vocabulary
+assert isfinite(learning_rate) and learning_rate > 0.0
+target_index = vocabulary.index(target)
+assert len(w_vocab) == len(hidden)
+assert all(len(row) == len(vocabulary) for row in w_vocab)
+assert all(isfinite(x) for x in hidden + [w for row in w_vocab for w in row])
+
+
+def forward(matrix):
+    # ponytail: 고정 hidden·한 위치 전용; 전체 모델 학습은 PyTorch로 전환합니다.
+    scores = [sum(x * row[column] for x, row in zip(hidden, matrix, strict=True))
+              for column in range(len(vocabulary))]
+    maximum = max(scores)
+    exps = [exp(z - maximum) for z in scores]
+    total = sum(exps)
+    probabilities = [value / total for value in exps]
+    loss = log(total) - (scores[target_index] - maximum)
+    return probabilities, loss
+
+
+before_probabilities, before_loss = forward(w_vocab)
+d_logits = [p - (1.0 if index == target_index else 0.0)
+            for index, p in enumerate(before_probabilities)]
+d_weights = [[x * gradient for gradient in d_logits] for x in hidden]
+# 갱신 전의 같은 행렬에서 구한 기울기로 모든 좌표를 한 번 갱신합니다.
+updated = [[weight - learning_rate * gradient
+            for weight, gradient in zip(row, gradients, strict=True)]
+           for row, gradients in zip(w_vocab, d_weights, strict=True)]
+after_probabilities, after_loss = forward(updated)
+
+# 독립 고정밀 Decimal 계산의 기준값과 비교합니다.
+assert isclose(before_loss, 1.5905288315131196, rel_tol=0.0, abs_tol=1e-12)
+assert isclose(after_loss, 1.1487649561797542, rel_tol=0.0, abs_tol=1e-12)
+assert isclose(after_probabilities[target_index], 0.31702807125207865,
+               rel_tol=0.0, abs_tol=1e-12)
+assert len(updated) == 2 and all(len(row) == 3 for row in updated)
+assert all(isfinite(w) for row in updated for w in row)
+assert after_loss < before_loss
+assert after_probabilities[target_index] > before_probabilities[target_index]
+assert w_vocab == original
+assert all(updated[r][c] != w_vocab[r][c] for r in range(2) for c in range(3))
+print("교육용 정답 토큰:", target)
+print(f"학습률: {learning_rate:.4f}")
+for r, row in enumerate(updated):
+    print(f"W[{r}] 갱신 전: {[round(w, 4) for w in w_vocab[r]]}")
+    print(f"W[{r}] 갱신 후: {[round(w, 4) for w in row]}")
+for token, before, after in zip(vocabulary, before_probabilities, after_probabilities, strict=True):
+    print(f"{token} 확률: {before:.4f} → {after:.4f}")
+print(f"loss: {before_loss:.4f} → {after_loss:.4f}")
+print("검사 통과: 출력 행렬을 한 번 갱신해 정답 확률이 오르고 loss가 줄었습니다. 파일 저장은 없습니다")
+PY
+```
+
+### 코드 해설
+
+- `forward`는 전달받은 행렬에서 점수·softmax·loss를 새로 계산합니다. `hidden`과 정답은 고정하지만, **확률은 고정하지 않습니다.** 갱신 전 확률로 갱신 후 loss를 계산하면 가중치 변화가 반영되지 않습니다.
+- `d_logits`와 `d_weights`는 16절의 계산입니다. 모든 기울기를 갱신 전 행렬에서 구한 뒤, `updated`의 여섯 원소를 한 번씩 계산합니다. 갱신 도중 기울기를 다시 구하는 좌표별 최적화가 아닙니다.
+- `learning_rate`는 갱신 보폭입니다. 앞 절의 `epsilon`은 중앙차분 검사 간격이므로 역할이 다릅니다. 이 실습은 수동 경사하강 한 번이며 PyTorch optimizer를 호출하지 않습니다. 앞 학습 코드의 기본 SGD `optimizer.step()`이 하는 파라미터 이동과 연결됩니다.
+- `updated`는 별도 중첩 리스트입니다. `w_vocab`을 그대로 보존하는 것은 전후 비교를 위해서이며, 새 행렬의 가중치가 실제 바뀌지 않았다는 뜻은 아닙니다. 다음 순전파는 반드시 `updated`를 사용합니다.
+- assert는 독립 고정밀 계산 기준값, loss 감소, 정답 확률 증가, 차원·유한값·원본 보존·여섯 좌표 변경을 확인합니다. 기준 숫자는 이 입력과 학습률 전용입니다. 학습률 실험 시 기준값도 다시 검증해야 하므로 이번에는 그대로 실행합니다. `python -O`는 assert를 생략하므로 사용하지 않습니다.
+
+### 로컬 산술 실행 예시와 해석
+
+정본 소스를 로컬 Python으로 실행하고 assert를 통과한 출력입니다. 마지막 자리에는 환경별 부동소수점 차이가 있을 수 있습니다.
+
+```text
+교육용 정답 토큰: failed
+학습률: 0.0100
+W[0] 갱신 전: [1.0, 0.0, -1.0]
+W[0] 갱신 후: [1.0128, -0.0127, -1.0001]
+W[1] 갱신 전: [0.0, 0.5, 0.0]
+W[1] 갱신 후: [0.0472, 0.4533, -0.0005]
+failed 확률: 0.2038 → 0.3170
+healthy 확률: 0.7881 → 0.6737
+<eos> 확률: 0.0081 → 0.0093
+loss: 1.5905 → 1.1488
+검사 통과: 출력 행렬을 한 번 갱신해 정답 확률이 오르고 loss가 줄었습니다. 파일 저장은 없습니다
+```
+
+정답 확률은 올라가고 loss는 내려갔지만 최대 확률 후보는 여전히 `healthy`입니다. **loss 감소와 정답 후보가 1등이 되는 것은 다릅니다.** `<eos>`의 점수는 내려가도 확률은 조금 오를 수 있습니다. softmax의 분모도 다른 후보 점수와 함께 바뀌기 때문입니다.
+
+### 한계와 복습
+
+이번 설정에서 loss 감소를 확인했을 뿐, 아무 학습률이나 모든 데이터에서 감소한다는 보장은 없습니다. 한 위치·한 교육용 정답에 대한 출력층 한 번의 갱신이지 전체 Attention 학습이나 일반화 성능의 증거가 아닙니다. hidden·QKV·위치 표현은 갱신하지 않으며, 반복 학습·자동 미분·파일 저장·문장 생성도 수행하지 않습니다.
+
+- [ ] 음수 기울기의 가중치가 왜 증가하는지 설명한다.
+- [ ] 갱신 후 확률과 loss를 다시 계산해야 하는 이유를 설명한다.
+- [ ] 학습률과 중앙차분 검사 간격을 구분한다.
+- [ ] loss 감소, 정답 1등, 일반화 성능을 구분한다.
+
+다음에는 같은 고정 입력에서 순전파·기울기 계산·갱신을 반복하는 작은 학습 루프로 확장할 수 있습니다. 반복마다 바뀐 행렬에서 기울기를 다시 계산해야 합니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
