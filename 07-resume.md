@@ -97,11 +97,13 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. [09장 작은 Transformer 블록](09-transformer.md)은 잔차 두 개·Pre-LN·FFN을 붙여 미래 차단과 전체 파라미터 한 번 갱신을 검사합니다. [10장 임베딩과 다음 토큰 학습](10-embedding-next-token.md)은 토큰·위치 임베딩과 두 문장의 모든 입력 위치 정답을 연결합니다. [11장 저장·복원·생성](11-checkpoint-generation.md)은 같은 모델을 재현 학습해 별도 저장하고 새 프로세스에서 복원·반복 생성합니다. 별도 데이터 평가는 다음 범위입니다.
+[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. [09장 작은 Transformer 블록](09-transformer.md)은 잔차 두 개·Pre-LN·FFN을 붙여 미래 차단과 전체 파라미터 한 번 갱신을 검사합니다. [10장 임베딩과 다음 토큰 학습](10-embedding-next-token.md)은 토큰·위치 임베딩과 두 문장의 모든 입력 위치 정답을 연결합니다. [11장 저장·복원·생성](11-checkpoint-generation.md)은 같은 모델을 재현 학습해 별도 저장하고 새 프로세스에서 복원·반복 생성합니다. 엄격한 독립 최종 평가는 다음 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 
 [12장 새 입력 관찰](12-input-probes.md)은 기존 모델을 고정하고 단어 생략·순서·상태 변경·미등록 단어 반응을 살펴봅니다. 정성 관찰과 별도 정답 평가를 구분하며 재학습은 하지 않습니다.
+
+[13장 다음 토큰 평가](13-next-token-evaluation.md)는 합성 정답을 고정하고 형식별로 분리한 입력의 마지막 상태 위치를 채점합니다. 정확도·평균 loss를 계산하며 모든 위치 학습 loss나 독립 최종 평가와 구분합니다.
 
 - [ ] `encode` 규칙과 학습되는 가중치를 구분한다.
 - [ ] `zero_grad()`, `backward()`, `step()`의 역할을 설명한다.

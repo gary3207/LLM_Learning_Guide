@@ -1,6 +1,6 @@
 # 12 · 새 입력으로 모델의 한계 관찰
 
-[← 이전: 저장·복원·생성](11-checkpoint-generation.md) · [목차](README.md)
+[← 이전: 저장·복원·생성](11-checkpoint-generation.md) · [목차](README.md) · [다음: 정답이 있는 평가 →](13-next-token-evaluation.md)
 
 ## 1. 목표와 선행 조건
 
@@ -135,7 +135,7 @@ python source/09-transformer/test_probe.py
 - 같은 체크포인트와 입력의 argmax 생성은 확률 샘플링이 아닙니다. 여러 번 돌린 결과를 서로 다른 평가 표본처럼 세지 않습니다.
 - 체크포인트 파일 불변은 메모리의 모든 상태가 불변이라는 일반 증명이 아닙니다. 이번 경로는 기존 eval/no_grad 생성만 사용하며 optimizer를 실행하지 않습니다.
 - 정답 데이터·정확도·평가 loss·데이터 보완·재학습은 포함하지 않습니다.
-- 다음 실습에서는 목적에 맞는 정답을 먼저 정하고 학습/검증/테스트를 분리하는 평가 설계를 다룰 수 있습니다. 단순히 관찰 출력을 정답으로 복사하지 않습니다.
+- [13장](13-next-token-evaluation.md)에서는 합성 과제의 정답을 먼저 정하고 형식별 train/validation/test의 마지막 상태 위치를 평가합니다. 단순히 관찰 출력을 정답으로 복사하지 않습니다.
 
 ## 7. 복습
 
@@ -146,4 +146,4 @@ python source/09-transformer/test_probe.py
 - [ ] 미등록 단어 거부가 모델의 의미 판단이 아님을 설명한다.
 - [ ] 정성 관찰과 별도 정답 데이터에 대한 평가를 구분한다.
 
-[← 이전: 저장·복원·생성](11-checkpoint-generation.md) · [목차](README.md)
+[← 이전: 저장·복원·생성](11-checkpoint-generation.md) · [목차](README.md) · [다음: 정답이 있는 평가 →](13-next-token-evaluation.md)

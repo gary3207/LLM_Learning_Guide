@@ -16,6 +16,7 @@
 !/10-embedding-next-token.md
 !/11-checkpoint-generation.md
 !/12-input-probes.md
+!/13-next-token-evaluation.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
