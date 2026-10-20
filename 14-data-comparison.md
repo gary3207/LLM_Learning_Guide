@@ -1,6 +1,6 @@
 # 14 · 학습 표현을 늘리고 같은 기준으로 비교하기
 
-[← 이전: 다음 토큰 평가](13-next-token-evaluation.md) · [목차](README.md)
+[← 이전: 다음 토큰 평가](13-next-token-evaluation.md) · [목차](README.md) · [다음: 작은 모델 마무리 →](15-finish-tiny-model.md)
 
 ## 1. 목표와 선행 조건
 
@@ -201,4 +201,4 @@ python source/09-transformer/test_data_comparison.py
 - [ ] 정답률이 같아도 loss가 다른 이유를 설명한다.
 - [ ] 저장하지 않은 학습 가중치는 프로세스 종료 후 사라짐을 설명한다.
 
-[← 이전: 다음 토큰 평가](13-next-token-evaluation.md) · [목차](README.md)
+[← 이전: 다음 토큰 평가](13-next-token-evaluation.md) · [목차](README.md) · [다음: 작은 모델 마무리 →](15-finish-tiny-model.md)
