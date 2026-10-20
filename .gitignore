@@ -23,6 +23,7 @@
 !/17-sft-compare.md
 !/18-lora-gpu.md
 !/19-model-evaluation.md
+!/20-qlora.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -40,6 +41,7 @@
 !/source/17-sft/
 !/source/18-lora/
 !/source/19-model-evaluation/
+!/source/20-qlora/
 !/source/check_guide.py
 __pycache__/
 *.pyc

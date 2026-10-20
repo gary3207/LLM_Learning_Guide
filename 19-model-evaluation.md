@@ -1,6 +1,6 @@
 # 19 · 원본·SFT·LoRA를 같은 기준으로 평가하기
 
-[← 이전: GPU·LoRA](18-lora-gpu.md) · [목차](README.md)
+[← 이전: GPU·LoRA](18-lora-gpu.md) · [목차](README.md) · [다음: QLoRA →](20-qlora.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -330,4 +330,4 @@ Ubuntu VM의 제공된 실행 로그에서 세 모델 모두 CUDA·float32로8�
 - [Transformers4.57.1 GenerationConfig와 생성](https://huggingface.co/docs/transformers/v4.57.1/en/main_classes/text_generation)
 - [PEFT 모델 적재·is_trainable](https://huggingface.co/docs/peft/v0.17.0/en/package_reference/peft_model)
 
-[← 이전: GPU·LoRA](18-lora-gpu.md) · [목차](README.md)
+[← 이전: GPU·LoRA](18-lora-gpu.md) · [목차](README.md) · [다음: QLoRA →](20-qlora.md)
