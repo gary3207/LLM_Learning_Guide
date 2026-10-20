@@ -289,7 +289,7 @@ python smollm2_qlora.py check --device cuda
 
 ### 실제 CPU 실행 예시 — A10 CUDA 결과가 아님
 
-Windows·Python3.12·PyTorch2.9.0+cpu·Transformers4.57.1·PEFT0.17.1·bitsandbytes0.48.2 격리 환경에서 실제 NF4 학습과 새 프로세스의 오프라인 복원을 실행했습니다. 가짜 양자화나 미학습 fixture 결과가 아닙니다. 아래는 실제 train/check stdout이며 환경·장치에 따라 수치나 생성이 달라질 수 있습니다. **A10 CUDA 학습·속도·GPU 메모리는 아직 검증하지 않았습니다.**
+Windows·Python3.12·PyTorch2.9.0+cpu·Transformers4.57.1·PEFT0.17.1·bitsandbytes0.48.2 격리 환경에서 실제 NF4 학습과 새 프로세스의 오프라인 복원을 실행했습니다. 가짜 양자화나 미학습 fixture 결과가 아닙니다. 아래는 실제 train/check stdout이며 환경·장치에 따라 수치나 생성이 달라질 수 있습니다. **별도 A10 CUDA 실행 예시는 아래에 구분하며, 속도·GPU 메모리는 측정하지 않았습니다.**
 
 ```text
 실행 장치: cpu | compute: float32 | NF4 double quant Linear4bit: 210
@@ -314,6 +314,34 @@ QLoRA 복원 검사 통과: NF4 원본+어댑터·logits/생성 일치·재학�
 이 설정에서는 네 질문 모두 정답 응답 loss가 낮아졌지만, 요구한 한 단어 정답을 생성하지 못했습니다. 18장의 937,056bytes와 같은 어댑터 크기도 정상입니다. **양자화한 것은 원본이고 저장한 q/v 어댑터의 shape는 같기 때문**입니다. 이 크기는 4비트 원본 크기나 GPU 메모리 사용량이 아닙니다.
 
 로컬 통합 검사는 실제 원본 q/v shape로 어댑터 파라미터 수를 독립 계산하고 LoRA-only 키·유한값·0이 아닌 B, 원본/양자화 상태 불변, 새 프로세스 복원, 캐시·후보 파일 불변, 기존 폴더 거부, 복원 기준/설정/base/revision 변조 탐지와 CUDA 부재 시 출력 생성 전 실패를 확인했습니다. 이 통합 실행은 학습을 포함하며 아래 정적 검사기의 `training_executed=false`와 구분합니다.
+
+### A10 CUDA 실행 로그 예시
+
+Ubuntu VM에서 bitsandbytes0.48.2 설치 후 실행한 제공 로그에서도 CUDA·float32·실제 NF4 학습, 원본/양자화 상태 불변, 어댑터 별도 저장과 새 프로세스 복원 통과를 확인했습니다. 아래는 해당 로그의 실행 결과 부분이며 위 CPU 검사와 별도 근거입니다. 일부 loss 끝자리는 CPU와 다르지만 생성 문자열과 어댑터 크기는 같았습니다. 이 로그만으로 실행 속도·GPU 메모리·독립 품질 평가까지 확인한 것은 아닙니다.
+
+```text
+실행 장치: cuda:0 | compute: float32 | NF4 double quant Linear4bit: 210
+[quantized-base/train] failed | loss=14.5004 | 생성='Device GPU status:\n\nDevice GPU'
+[quantized-base/train] healthy | loss=11.4788 | 생성='Device network status:\n\nDevice network'
+[quantized-base/probe] failed | loss=14.3651 | 생성='The gpu status is the status of'
+[quantized-base/probe] healthy | loss=8.5710 | 생성='The network status is "Not Available".'
+QLoRA 학습 대상: 230,400 | q/v rank4 alpha8 dropout0
+[qlora/train] failed | loss=12.7704 | 생성='Device GPU status:\n\nDevice GPU'
+[qlora/train] healthy | loss=9.8301 | 생성='Device network status:\n\nDevice network'
+[qlora/probe] failed | loss=12.4212 | 생성='The gpu status is "not available'
+[qlora/probe] healthy | loss=7.4152 | 생성='The network status is currently "Not Available'
+QLoRA 별도 저장: smollm2_qlora_v1 | 어댑터 가중치: 937056 bytes | 원본/양자화 상태 불변
+실행 장치: cuda:0 | compute: float32 | NF4 double quant Linear4bit: 210
+[restored/train] failed | loss=12.7704 | 생성='Device GPU status:\n\nDevice GPU'
+[restored/train] healthy | loss=9.8301 | 생성='Device network status:\n\nDevice network'
+[restored/probe] failed | loss=12.4212 | 생성='The gpu status is "not available'
+[restored/probe] healthy | loss=7.4152 | 생성='The network status is currently "Not Available'
+QLoRA 복원 검사 통과: NF4 원본+어댑터·logits/생성 일치·재학습 없음
+```
+
+- 학습 질문·probe 모두 정답 응답 loss가 낮아졌지만 한 단어 정답은 생성하지 못했습니다. 저장·복원 성공과 과제 품질을 구분합니다.
+- 실행 중 bitsandbytes CUDA 코드에서 `_check_is_size`가 향후 제거될 예정이라는 `FutureWarning`이 출력됐지만, 이어진 학습·저장·복원 검사는 완료됐습니다. 이 로그는 해당 경고 때문에 실행이 실패했다는 증거가 아닙니다. 경고를 숨기거나 패키지를 임의 교체해 성공 출력을 다시 만들 필요는 없습니다.
+- 원본/양자화 상태 불변과 생성/logits 일치는 코드 검사 통과 로그로 확인한 범위입니다. 이 로그가 저장 파일의 별도 다운로드·내용 검사나 성능 측정을 대신하지는 않습니다.
 
 실행 결과에서 다음을 구분합니다.
 
