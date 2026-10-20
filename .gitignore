@@ -12,6 +12,7 @@
 !/06-context-window.md
 !/07-resume.md
 !/08-attention.md
+!/09-transformer.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -24,6 +25,7 @@
 !/source/05-next-token/
 !/source/06-context-window/
 !/source/08-attention/
+!/source/09-transformer/
 !/source/check_guide.py
 __pycache__/
 *.pyc

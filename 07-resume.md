@@ -95,7 +95,7 @@ network current status -> {'healthy': 1}
 
 ## 6. 다음 실습: 펼치기와 가중합
 
-[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. 입력 벡터는 고정이며 학습되는 임베딩·Transformer 블록·전체 언어 모델 학습·저장·생성은 다음 범위입니다.
+[08장 Attention 입문](08-attention.md)은 QKV·causal mask·위치 표현에서 어휘 출력·loss·기울기·출력층 학습 루프까지 연결합니다. 표준 라이브러리로 원리를 계산한 뒤 PyTorch 자동 미분·SGD와 비교합니다. 마지막 연결 실습에서는 hidden을 고정하지 않고 Attention부터 다시 계산해 QKV와 어휘 출력 행렬을 함께 한 번 갱신합니다. [09장 작은 Transformer 블록](09-transformer.md)은 잔차 두 개·Pre-LN·FFN을 붙여 미래 차단과 전체 파라미터 한 번 갱신을 검사합니다. 입력 벡터는 고정이며 학습되는 임베딩·전체 언어 모델 학습·저장·생성은 다음 범위입니다.
 
 ## 7. 핵심 개념 체크리스트
 

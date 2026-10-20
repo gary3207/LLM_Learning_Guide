@@ -1854,6 +1854,6 @@ loss: 1.5905 → 1.1127
 - [ ] 한 위치 loss가 공유 QKV 변환 행렬까지 전달되는 경로를 찾는다.
 - [ ] Attention 학습 연결과 Transformer 블록 완성을 구분한다.
 
-다음 목표는 잔차 연결·정규화·Feed-forward를 붙여 **작동하는 작은 Transformer 블록**으로 묶는 것입니다.
+다음 [09장](09-transformer.md)에서는 잔차 연결·정규화·Feed-forward를 붙여 **작동하는 작은 Transformer 블록**으로 묶습니다.
 
-[← 이전: 학습 점검](07-resume.md) · [목차](README.md)
+[← 이전: 학습 점검](07-resume.md) · [목차](README.md) · [다음: 작은 Transformer 블록 →](09-transformer.md)
