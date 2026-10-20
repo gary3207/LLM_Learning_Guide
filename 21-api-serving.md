@@ -199,7 +199,7 @@ PY
 ) && python smollm2_api.py --device cuda --port 8000
 ```
 
-모델 로딩 후 아래 형태의 준비 메시지가 나오는 것이 성공 기준입니다. **이 줄은 기대 형식이며 아직 해당 VM의 API 실행 결과가 아닙니다.**
+모델 로딩 후 아래 형태의 준비 메시지가 나오는 것이 성공 기준입니다. **이 줄은 준비 메시지의 기대 형식이며, 별도로 확인한 실제 CUDA HTTP 응답 예시는6절에 구분합니다.**
 
 ```text
 READY http://127.0.0.1:8000 | device=cuda:0 | NF4=210
@@ -295,6 +295,20 @@ python source/21-api-serving/test_serving.py --integration
 ```
 
 검사 소스: [test_serving.py](source/21-api-serving/test_serving.py). VM의 학습 어댑터를 사용한 API 응답과 Ctrl+C 종료는 위 실습의 실제 출력으로 따로 확인합니다. 현재 검사는 운영 안정성·성능·GPU 메모리·모델 품질 평가가 아닙니다.
+
+### Ubuntu VM의 CUDA HTTP 실행 예시
+
+가이드 환경에서 실행한 제공 로그에서 `/health`와 두 `/generate` 요청 모두 HTTP200으로 응답한 것을 확인했습니다. health 응답은 `cuda:0`·NF4 모듈210개를 보고하며, 두 질문의 입력은 각각41·40토큰, 새 생성은 각각8토큰입니다. 위 CPU 미학습 fixture 검사와 별도 결과입니다.
+
+```text
+health: 200 {'status': 'ok', 'device': 'cuda:0', 'quantized_modules': 210}
+prompt: Device gpu status? Reply with one word.
+response: 200 {'text': 'Device GPU status:\n\nDevice GPU', 'input_tokens': 41, 'generated_tokens': 8}
+prompt: Device network status? Reply with one word.
+response: 200 {'text': 'Device network status:\n\nDevice network', 'input_tokens': 40, 'generated_tokens': 8}
+```
+
+HTTP 요청·응답 경로는 성공했지만 한 단어 정답 `failed`·`healthy`를 생성하지는 못했습니다. 서빙은 기존 모델을 호출하는 경로를 제공할 뿐 응답 품질을 자동 개선하지 않습니다. 이 응답은 지연시간·처리량·GPU 메모리·동시 처리·독립 품질 평가의 결과가 아닙니다. 호출 뒤 서버 종료는5절의 Ctrl+C 절차로 마무리합니다.
 
 ## 7. 복습
 
