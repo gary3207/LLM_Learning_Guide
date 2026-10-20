@@ -115,6 +115,8 @@ network current status -> {'healthy': 1}
 
 [18장 LoRA](18-lora-gpu.md)는 같은 원본의 q/v에 rank4 어댑터를 붙여 원본 동결·적은 학습 대상·어댑터 저장·원본과 결합하는 복원을 확인합니다. CPU 검증과 별도 A10 실행 로그 모두 같은 SGD20회 후 loss가 낮아져도 정답 생성에 실패한 결과를 유지합니다. 두 환경의 근거를 구분하며 속도·GPU 메모리 비교는 하지 않습니다.
 
+[19장 모델 비교 평가](19-model-evaluation.md)는 기존 세 모델을 읽기만 하고 같은 조건으로8문항씩 채점합니다. train/probe/diagnostic 그룹과 완전 일치·추가 문구·다른 라벨을 구분하고 JSON에 저장합니다. 실제 CPU 미학습 fixture 검사와 학습 후보의 평가 결과는 별개이며, 독립 최종 평가나 품질 합격 판정은 아닙니다.
+
 - [ ] `encode` 규칙과 학습되는 가중치를 구분한다.
 - [ ] `zero_grad()`, `backward()`, `step()`의 역할을 설명한다.
 - [ ] `eval()`과 `no_grad()`를 구분한다.

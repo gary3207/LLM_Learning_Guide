@@ -1,6 +1,6 @@
 # 18 · GPU에서 LoRA: 작은 어댑터 학습·저장·복원
 
-[← 이전: 전체 파라미터 SFT](17-sft-compare.md) · [목차](README.md)
+[← 이전: 전체 파라미터 SFT](17-sft-compare.md) · [목차](README.md) · [다음: 모델 비교 평가 →](19-model-evaluation.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -285,4 +285,4 @@ CUDA·모듈·다운로드 오류는 마지막 오류 메시지를 기준으로 
 - [PEFT 어댑터 체크포인트 형식](https://huggingface.co/docs/peft/v0.17.0/developer_guides/checkpoint)
 - [PEFT 0.17.1 소스](https://github.com/huggingface/peft/tree/v0.17.1)
 
-[← 이전: 전체 파라미터 SFT](17-sft-compare.md) · [목차](README.md)
+[← 이전: 전체 파라미터 SFT](17-sft-compare.md) · [목차](README.md) · [다음: 모델 비교 평가 →](19-model-evaluation.md)

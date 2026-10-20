@@ -22,6 +22,7 @@
 !/16-pretrained-inference.md
 !/17-sft-compare.md
 !/18-lora-gpu.md
+!/19-model-evaluation.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -38,6 +39,7 @@
 !/source/16-pretrained/
 !/source/17-sft/
 !/source/18-lora/
+!/source/19-model-evaluation/
 !/source/check_guide.py
 __pycache__/
 *.pyc
