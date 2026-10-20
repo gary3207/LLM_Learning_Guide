@@ -1705,6 +1705,155 @@ loss: 1.5905 → 1.1488
 - [ ] CrossEntropyLoss에 확률이 아닌 logits를 넣는 이유를 설명한다.
 - [ ] 고정 hidden과 학습 대상 W를 구분한다.
 
-다음에는 고정했던 hidden에 대해서도 기울기를 구해 출력층에서 입력 방향으로의 역전파를 확인할 수 있습니다.
+다음 절에서는 hidden 기울기를 확인하는 동시에 Attention 계산을 다시 연결해 QKV 변환 행렬까지 역전파합니다.
+
+## 20. 연결 실습 · Attention부터 loss까지 함께 역전파하기
+
+### 이번에 연결하는 전체 흐름
+
+19절까지는 `hidden`을 숫자 두 개로 고정해 출력층만 학습했습니다. 이번에는 12절의 **토큰·위치 입력과 QKV 변환 행렬**을 다시 가져옵니다. 마지막 위치의 Attention 출력을 어휘 점수·loss에 연결하고 **Wq·Wk·Wv·어휘 출력 행렬을 함께 한 번 갱신**합니다. 작은 미분 계산을 분리하기보다 하나의 동작하는 학습 경로로 연결하는 실습입니다.
+
+```text
+X → Q·K·V → causal Attention → 마지막 hidden → 어휘 logits → loss
+    ↑ Wq·Wk·Wv                           ↑ Wo
+
+loss.backward(): loss → Wo와 hidden → Attention → Wq·Wk·Wv
+optimizer.step(): 네 행렬을 함께 갱신
+새 순전파: 바뀐 Attention → 바뀐 hidden → 새 logits·loss
+```
+
+초기 입력·행렬은 앞과 같고 정답은 마지막 위치의 교육용 `failed`입니다. 입력 토큰은 `gpu current gpu`이며 실제 데이터의 정답을 학습하는 것은 아닙니다. 위치 벡터까지 더한 `X`는 고정합니다. `X(3×2) × Wq/Wk/Wv(2×2)`로 Q·K·V를 만들고, 비중 `3×3`과 V의 곱에서 마지막 행 `hidden(1×2)`을 가져옵니다. `Wo(2×3)`는 **어휘 출력 행렬**이며 multi-head Attention의 head 결합용 출력 투영이 아닙니다. bias는 없습니다.
+
+### 실행 위치와 전체 명령
+
+**Ubuntu VM 터미널**에서 기존 `~/llm-lab/source`의 PyTorch 가상환경으로 실행합니다. CPU·float64이며 기존 실습의 변수가 없어도 됩니다. `cd`는 폴더 이동, `source`는 가상환경 활성화, `python -`는 마지막 `PY`까지 실행입니다. 설치·GPU·모델 파일 읽기·저장은 없으며 파라미터는 메모리에서만 갱신합니다.
+
+**소스:** [16-attention-backprop.py](source/08-attention/16-attention-backprop.py)
+
+```bash
+cd ~/llm-lab/source
+source .venv/bin/activate
+python --version
+
+python - <<'PY'
+from math import isclose, sqrt
+import torch
+
+# 12절의 gpu/current/gpu 토큰+위치 벡터를 유지합니다. X는 학습하지 않습니다.
+X = torch.tensor([[1.0, 0.0], [0.0, 2.0], [1.0, 2.0]],
+                 dtype=torch.float64, device="cpu")  # 3위치×2좌표
+vocabulary = ["failed", "healthy", "<eos>"]
+target = "failed"  # 마지막 위치의 교육용 다음 토큰 정답
+learning_rate = 0.01
+assert target in vocabulary
+y = torch.tensor([vocabulary.index(target)], dtype=torch.long, device="cpu")
+initial = {"Wq": [[1.0, 0.0], [1.0, 1.0]],
+           "Wk": [[0.0, 1.0], [1.0, 0.0]],
+           "Wv": [[2.0, 0.0], [0.0, 3.0]],
+           "Wo": [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0]]}
+parameters = {name: torch.nn.Parameter(torch.tensor(values, dtype=torch.float64, device="cpu"))
+              for name, values in initial.items()}
+future = torch.ones((3, 3), dtype=torch.bool, device="cpu").triu(diagonal=1)
+
+
+def forward(wq, wk, wv, wo):
+    # ponytail: 단일 head·3위치 전용; Transformer 블록 확장은 다음 단계입니다.
+    Q, K, V = X @ wq, X @ wk, X @ wv
+    scores = (Q @ K.T) / sqrt(Q.shape[-1])
+    attention = torch.softmax(scores.masked_fill(future, float("-inf")), dim=-1)
+    hidden = (attention @ V)[-1:]  # 마지막 위치만 loss에 연결, shape 1×2
+    logits = hidden @ wo  # 1×3, bias 없음
+    return attention, hidden, logits
+
+
+loss_fn = torch.nn.CrossEntropyLoss(reduction="mean", label_smoothing=0.0)
+optimizer = torch.optim.SGD(list(parameters.values()), lr=learning_rate,
+                            momentum=0.0, weight_decay=0.0)
+before = {name: value.detach().clone() for name, value in parameters.items()}
+optimizer.zero_grad(set_to_none=True)
+attention, hidden, logits = forward(*parameters.values())
+expected_hidden = torch.tensor([[1.61332902229994, 5.931436569567589]], dtype=torch.float64)
+assert torch.allclose(hidden, expected_hidden, rtol=0.0, atol=1e-12)
+assert torch.all(attention[future] == 0.0)
+assert torch.allclose(attention.sum(dim=-1), torch.ones(3, dtype=torch.float64))
+hidden.retain_grad()  # 중간 결과의 기울기도 표시하기 위해 보관합니다.
+loss = loss_fn(logits, y)
+assert isclose(loss.item(), 1.5905288315131196, rel_tol=0.0, abs_tol=1e-12)
+loss.backward()
+assert hidden.grad is not None
+# z=hWo → dL/dh=dL/dz × Wo의 전치. 갱신 전 Wo로 비교합니다.
+d_logits = torch.softmax(logits.detach(), dim=-1)
+d_logits[0, y.item()] -= 1.0
+manual_hidden_grad = d_logits @ parameters["Wo"].detach().T
+assert torch.allclose(hidden.grad, manual_hidden_grad, rtol=0.0, atol=1e-12)
+assert not X.requires_grad and X.grad is None
+print("교육용 정답 토큰:", target)
+print("갱신 전 hidden:", [round(v, 4) for v in hidden.detach()[0].tolist()])
+print("hidden 기울기:", [round(v, 4) for v in hidden.grad[0].tolist()])
+for name, parameter in parameters.items():
+    assert parameter.grad is not None and torch.isfinite(parameter.grad).all()
+    assert parameter.grad.norm().item() > 0.0
+    assert torch.equal(parameter.detach(), before[name])
+    print(f"{name}: 기울기 있음 | 크기={parameter.grad.norm().item():.4f}")
+optimizer.step()
+for name, parameter in parameters.items():
+    assert not torch.equal(parameter.detach(), before[name])
+    assert torch.allclose(parameter.detach(), before[name] - learning_rate * parameter.grad,
+                          rtol=0.0, atol=1e-12)
+with torch.no_grad():
+    _, new_hidden, new_logits = forward(*parameters.values())
+    new_loss = loss_fn(new_logits, y).item()
+    old_probability = torch.softmax(logits.detach(), dim=-1)[0, y.item()].item()
+    new_probability = torch.softmax(new_logits, dim=-1)[0, y.item()].item()
+assert torch.isfinite(new_hidden).all() and torch.isfinite(new_logits).all()
+assert not torch.allclose(new_hidden, hidden.detach(), rtol=0.0, atol=1e-12)
+assert new_loss < loss.item() and new_probability > old_probability
+print("갱신 후 hidden:", [round(v, 4) for v in new_hidden[0].tolist()])
+print(f"failed 확률: {old_probability:.4f} → {new_probability:.4f}")
+print(f"loss: {loss.item():.4f} → {new_loss:.4f}")
+print("검사 통과: hidden을 거쳐 QKV·출력 행렬까지 역전파하고 함께 한 번 갱신했습니다. 저장은 없습니다")
+PY
+```
+
+### 역전파와 갱신에서 확인할 점
+
+- **hidden을 고정하지 않습니다.** `forward`가 현재 QKV 행렬에서 매번 계산합니다. 이전 실습의 두 숫자는 초기값 재현 검사에만 쓰고 순전파 입력으로 사용하지 않습니다.
+- `future`의 대각선 위가 미래 위치입니다. 그 점수를 `-inf`로 바꾸고 softmax하므로 미래 비중이 0이 됩니다. 자기 위치는 허용합니다. 마지막 위치는 앞의 모든 위치를 볼 수 있지만 앞 위치의 mask도 코드에서 검사합니다.
+- `hidden`은 파라미터가 아니라 계산 그래프의 **중간 결과**입니다. 보통 중간 텐서의 `.grad`는 자동 보관하지 않으므로 표시하려고 `retain_grad()`를 호출합니다. 이 호출이 역전파 경로를 새로 만드는 것은 아닙니다. optimizer에는 hidden이 아니라 네 행렬을 전달합니다.
+- `logits = hidden @ Wo`이므로 `dL/dhidden = dL/dlogits @ Wo.T`입니다. 이 결과는 `1×2`이며 자동 미분 결과와 비교합니다. 이후 Attention의 softmax·QK 내적·V 가중합·X와의 행렬곱을 거쳐 QKV 파라미터 기울기로 이어집니다.
+- `parameters.values()`는 Wq·Wk·Wv·Wo 삽입 순서입니다. 앞의 `*`는 네 행렬을 `forward`의 네 인자로 풀어 전달합니다. 모두 `nn.Parameter`이므로 기울기를 계산할 수 있습니다. X는 고정이며 토큰·위치 임베딩을 학습하는 단계는 아닙니다.
+- 표시한 **기울기 크기는 행렬 원소들의 제곱합의 제곱근**입니다. 기울기 전달 여부를 요약한 것이지 각 행렬의 중요도 순위나 Attention 비중이 아닙니다. 모든 원소의 기울기가 반드시 0이 아니어야 한다는 뜻도 아닙니다.
+- `backward()` 직후에는 네 행렬 모두 초기값 그대로임을 확인하고, `step()` 뒤에는 각각 `이전 값 - 학습률 × 기울기`와 일치하는지 확인합니다. 갱신 뒤 Attention부터 다시 계산하므로 hidden도 달라집니다.
+
+### 로컬 실행 예시
+
+CPU·float64의 실제 PyTorch 실행에서 assert를 통과한 출력입니다. 반올림 전 값으로 검사하며 마지막 자릿수는 환경에 따라 다를 수 있습니다.
+
+```text
+교육용 정답 토큰: failed
+갱신 전 hidden: [1.6133, 5.9314]
+hidden 기울기: [-0.8043, 0.394]
+Wq: 기울기 있음 | 크기=0.4161
+Wk: 기울기 있음 | 크기=0.6709
+Wv: 기울기 있음 | 크기=1.9125
+Wo: 기울기 있음 | 크기=6.8864
+갱신 후 hidden: [1.6572, 5.9124]
+failed 확률: 0.2038 → 0.3287
+loss: 1.5905 → 1.1127
+검사 통과: hidden을 거쳐 QKV·출력 행렬까지 역전파하고 함께 한 번 갱신했습니다. 저장은 없습니다
+```
+
+앞 출력층만 갱신했을 때의 loss `1.1488`과 달리 이번에는 `1.1127`입니다. **바뀌는 파라미터 범위가 다르기 때문**이며, 이를 근거로 모든 데이터에서 더 좋은 방법이라고 단정하지 않습니다.
+
+### 한계·복습과 다음 목표
+
+단일-head causal Attention과 어휘 출력층의 한 번 학습 경로를 연결했습니다. **아직 Transformer 블록이나 전체 언어 모델은 아닙니다.** Multi-head 구성·Attention head 결합용 투영·잔차 연결·LayerNorm·Feed-forward·학습되는 토큰/위치 임베딩은 포함하지 않습니다. 하나의 교육용 문맥에서 마지막 위치 loss만 계산하며 모든 위치의 다음 토큰 학습·데이터 분리·일반화 평가·저장·문장 생성도 범위 밖입니다.
+
+- [ ] 이번에는 왜 hidden도 갱신 전후에 달라지는지 설명한다.
+- [ ] optimizer가 hidden을 직접 갱신하는 것은 아님을 설명한다.
+- [ ] 한 위치 loss가 공유 QKV 변환 행렬까지 전달되는 경로를 찾는다.
+- [ ] Attention 학습 연결과 Transformer 블록 완성을 구분한다.
+
+다음 목표는 잔차 연결·정규화·Feed-forward를 붙여 **작동하는 작은 Transformer 블록**으로 묶는 것입니다.
 
 [← 이전: 학습 점검](07-resume.md) · [목차](README.md)
