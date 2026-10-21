@@ -129,7 +129,7 @@ Kubernetes는 위 단일 VM 흐름 이후의 별도 확장 주제이며 이 여�
 1. [독립 평가 데이터 설계](31-evaluation-data.md): 문장 틀별 train8/dev4/test4와 기존 진단6개를 분리하고 새 JSON을 준비한다. 코드/데이터 로컬 검증과 별도 Ubuntu VM의 생성·검사·저장·셸 복귀 확인. 모델 실행/학습 없음. 넓은 일반화 평가는 아니다.
 2. [모델 품질 개선](32-quality-improvement.md): 별도 CUDA VM 추가0/20/60회 모두train0/8·dev0/4. dev loss9.391413/7.103381/3.677019로60회선택·새 프로세스 복원 통과·최종 test0/4→0/4·보고서 저장·셸 복귀 확인. 비교 실습 완료와 정답률 개선 없음은 구분하며 기존 모델·품질 기준 유지.
 3. [학습 재현·재개](33-training-resume.md): 새 AdamW/StepLR 실험에서 연속6회와3회 저장·별도 프로세스3회 재개를 비교. 로컬 CPU fixture와 별도 CUDA VM 모두 상태 비교 통과·어댑터 최대차이0 확인. CUDA 문항/LR/표시loss 일치·VERIFY=PASS·보고서 저장·셸 복귀로 재개 실습 완료. 품질 평가·과거 SGD 상태 복구는 아니다.
-4. [작은 모델 구조 확장](34-structure-comparison.md): head·층·보이는 문맥을 하나씩 변경. 실제 로컬 CPU 학습/진단·네 모델 저장·새 프로세스 logits 복원 확인. 기준/head2/층2는 각각4/4, 문맥2는 입력 충돌 상한과 같은2/4. 단일 seed·합성 진단이며 VM 실행은 별도 대기. 독립 test·생성·GPU 성능·QLoRA 품질 개선이 아니다.
+4. [작은 모델 구조 확장](34-structure-comparison.md): head·층·보이는 문맥을 하나씩 변경. 로컬 검증에 이어 별도 VM의 PyTorch2.11.0+cu128·CPU float64에서도 학습/진단·네 모델 저장·새 프로세스 logits 복원 PASS·verify.json 저장·셸 복귀 확인. 기준/head2/층2는 train/probe 각각4/4, 문맥2는 충돌 상한과 같은2/4. 합성 진단 비교 실습 완료이며 독립 test·생성·GPU 성능·QLoRA 품질 개선이 아니다.
 
 ## 학습 점검 질문
 

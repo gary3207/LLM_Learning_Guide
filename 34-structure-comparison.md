@@ -275,6 +275,24 @@ python -B source/34-structure-comparison/test_structure.py
 
 위 테스트 명령은 저장소 루트에서, Torch가 설치된 환경으로 실행한다. VM의 flat 단일 파일 배치와는 구분한다. VM에는 비교 코드 하나만 있으면 된다.
 
+### 별도 Ubuntu VM 실행 예시
+
+별도 VM에서도 PyTorch `2.11.0+cu128`, `DEVICE=cpu`, `DTYPE=float64`로 다음 출력과 셸 복귀를 확인했다. 패키지 버전의 CUDA 표기와 실제 실행 장치를 구분한다. 이번 실습은 GPU 실행이나 GPU 성능 측정이 아니다. 다음은 제공된 콘솔 출력이며 VM의 전체 보고서·체크포인트를 직접 읽은 결과는 아니다.
+
+```text
+CREATED compare_structure.py
+DEVICE=cpu DTYPE=float64 TORCH=2.11.0+cu128
+baseline heads=1 layers=1 context=4 params=212 train=4/4 loss=0.002856 probe=4/4 loss=0.044103
+heads2 heads=2 layers=1 context=4 params=212 train=4/4 loss=0.003508 probe=4/4 loss=0.051355
+layers2 heads=1 layers=2 context=4 params=352 train=4/4 loss=0.001738 probe=4/4 loss=0.016900
+context2 heads=1 layers=1 context=2 params=212 train=2/4 loss=0.694796 probe=2/4 loss=0.694796
+SAVED report.json + 4 checkpoints | CPU only; no old models read/changed; probe is diagnostic
+DEVICE=cpu DTYPE=float64 TORCH=2.11.0+cu128
+RESTORE=PASS (4 models, train/probe logits, fresh process) | SAVED verify.json
+```
+
+네 모델의 학습·진단 비교, 보고서와 체크포인트4개 저장, 새 프로세스의 train/probe logits 복원 검사와 `verify.json` 저장까지 완료됐다. 표시된 loss와 정답 수는 위 로컬 예시와 같지만 가중치나 전체 logits가 두 환경 사이에서 비트 단위로 같다는 뜻은 아니다. 이번 VM 실행에서는 head 수를 늘려 정답 수가 개선되지는 않았고, 두 층은 loss가 낮아도 정답 수는 기준과 같았다. 문맥2의2/4는 오류가 아니라 장치 이름을 제거한 입력 충돌 상한에 도달한 결과다. 진단 probe를 독립 test로 해석하거나 기존 QLoRA 품질 개선으로 확대하지 않는다.
+
 ## 7. 확인할 것
 
 - 네 모델의 `heads/layers/context/params`, 학습/진단 정답 수와 loss를 비교한다.
