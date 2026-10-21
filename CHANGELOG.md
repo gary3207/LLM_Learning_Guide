@@ -1,5 +1,10 @@
 # 변경 내역
 
+## 2026-10-21 · 평가 데이터 VM 준비 결과
+
+- 별도 Ubuntu VM의 준비 코드 생성·train8/dev4/test4·legacy_dev6·CHECK=PASS·JSON 저장과 셸 복귀 확인.
+- MODEL_EXECUTED=False/TRAINING_EXECUTED=False를 유지하고 데이터 준비 완료와 모델 품질 개선을 구분. 코드·모델·기존 품질 기준 변경 없이 결과 문서만 반영.
+
 ## 2026-10-21 · 독립 평가 데이터 설계
 
 - 31장: 기존 합성 규칙을 유지한 문장 틀별 train8/dev4/test4와 기존 probe/diagnostic6개 별도 보관. 기존 학습2개는 train에 유지.

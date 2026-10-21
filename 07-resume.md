@@ -163,6 +163,6 @@ network current status -> {'healthy': 1}
 
 [30장 Docker 실행환경](30-container-runtime.md)은 실제 이미지 빌드/CUDA 검사와 읽기 전용 모델·캐시의8003 진단 API까지 연결했습니다. 컨테이너Python3.12.15·cuda:0·NF4 210·전체 health identity 일치, 순차/동시 각2성공0실패·새 보고서/검사0·대상 컨테이너 제거를 확인했습니다. A의 정상 종료 문구 자체는 미제공이며 호스트Python3.12.3과도 구분합니다. LLMOps 입문 여섯 묶음은 이 범위에서 정리했지만 품질0/8과 실제 승인 배포·롤백 미실행은 유지합니다. 남은 학습은 독립 평가 데이터→모델 품질 개선→학습 재현/재개→작은 모델 구조 확장입니다. 지금 자동 재학습이나 RAG를 추가하지 않습니다.
 
-[31장 독립 평가 데이터 설계](31-evaluation-data.md)는 문장 틀별 train8/dev4/test4와 기존 진단6개를 분리합니다. 데이터 준비·중복/라벨/그룹 검사·JSON 읽기 일치·덮어쓰기 거부를 로컬에서 확인했습니다. VM의 `prepare_evaluation_data.py` 실행 출력은 별도 확인합니다. 모델 학습·추론이나 기존 품질0/8의 개선 결과는 아직 없습니다. 이 데이터 준비 뒤에는 모델 품질 개선 묶음으로 이어갑니다.
+[31장 독립 평가 데이터 설계](31-evaluation-data.md)는 문장 틀별 train8/dev4/test4와 기존 진단6개를 분리합니다. 데이터 준비·중복/라벨/그룹 검사·JSON 읽기 일치·덮어쓰기 거부를 로컬에서 확인했습니다. 별도 Ubuntu VM에서도 `prepare_evaluation_data.py` 생성·같은 문항 수·CHECK=PASS·`evaluation_splits_v1.json` 저장·모델 실행/학습 없음·셸 복귀를 확인했습니다. 데이터 준비는 완료됐으며 다음은 모델 품질 개선 묶음입니다. 새 모델 학습·추론이나 기존 품질0/8의 개선 결과는 아직 없습니다.
 
 [← 이전: 문맥 확장](06-context-window.md) · [목차](README.md) · [다음: Attention 입문 →](08-attention.md)
