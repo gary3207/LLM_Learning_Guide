@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "task": "synthetic device-to-label mapping; wording holdout only",
+  "scoring": "strip-only, case-sensitive exact match",
+  "splits": {
+    "train": [
+      {
+        "template_id": "train-1",
+        "device": "gpu",
+        "prompt": "Device gpu status? Reply with one word.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "train-1",
+        "device": "network",
+        "prompt": "Device network status? Reply with one word.",
+        "answer": "healthy"
+      },
+      {
+        "template_id": "train-2",
+        "device": "gpu",
+        "prompt": "State the gpu status. Reply with one word.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "train-2",
+        "device": "network",
+        "prompt": "State the network status. Reply with one word.",
+        "answer": "healthy"
+      },
+      {
+        "template_id": "train-3",
+        "device": "gpu",
+        "prompt": "For device gpu, give its status in one word.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "train-3",
+        "device": "network",
+        "prompt": "For device network, give its status in one word.",
+        "answer": "healthy"
+      },
+      {
+        "template_id": "train-4",
+        "device": "gpu",
+        "prompt": "Device: gpu. Status (one word):",
+        "answer": "failed"
+      },
+      {
+        "template_id": "train-4",
+        "device": "network",
+        "prompt": "Device: network. Status (one word):",
+        "answer": "healthy"
+      }
+    ],
+    "dev": [
+      {
+        "template_id": "dev-1",
+        "device": "gpu",
+        "prompt": "Give one word for the status of gpu.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "dev-1",
+        "device": "network",
+        "prompt": "Give one word for the status of network.",
+        "answer": "healthy"
+      },
+      {
+        "template_id": "dev-2",
+        "device": "gpu",
+        "prompt": "What status applies to gpu? Answer with one word.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "dev-2",
+        "device": "network",
+        "prompt": "What status applies to network? Answer with one word.",
+        "answer": "healthy"
+      }
+    ],
+    "test": [
+      {
+        "template_id": "test-1",
+        "device": "gpu",
+        "prompt": "Provide a single-word status for gpu.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "test-1",
+        "device": "network",
+        "prompt": "Provide a single-word status for network.",
+        "answer": "healthy"
+      },
+      {
+        "template_id": "test-2",
+        "device": "gpu",
+        "prompt": "Return only the status label of gpu.",
+        "answer": "failed"
+      },
+      {
+        "template_id": "test-2",
+        "device": "network",
+        "prompt": "Return only the status label of network.",
+        "answer": "healthy"
+      }
+    ]
+  },
+  "legacy_dev": [
+    {
+      "prompt": "What is the gpu status? Reply with one word.",
+      "answer": "failed"
+    },
+    {
+      "prompt": "What is the network status? Reply with one word.",
+      "answer": "healthy"
+    },
+    {
+      "prompt": "GPU status? Reply with one word.",
+      "answer": "failed"
+    },
+    {
+      "prompt": "Network status? Reply with one word.",
+      "answer": "healthy"
+    },
+    {
+      "prompt": "Report the gpu status in one word.",
+      "answer": "failed"
+    },
+    {
+      "prompt": "Report the network status in one word.",
+      "answer": "healthy"
+    }
+  ]
+}
