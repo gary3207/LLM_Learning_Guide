@@ -1,6 +1,6 @@
 # 31 · 독립 평가 데이터 설계
 
-[← 이전: Docker 실행환경](30-container-runtime.md) · [목차](README.md) · [학습 점검](07-resume.md)
+[← 이전: Docker 실행환경](30-container-runtime.md) · [목차](README.md) · [다음: 모델 품질 개선 →](32-quality-improvement.md)
 
 ## 1. 목표와 이번 범위
 
