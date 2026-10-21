@@ -389,7 +389,7 @@ python -B improve_qlora.py check --device cuda
 
 ## 6. 검증 결과와 실행 출력 해석
 
-실제 로컬 통합 검증 결과는 아래에 기록한다. 사용자 VM CUDA 학습·복원·최종 test는 별도 실행 출력으로 확인한다. 로컬 검증 입력은 학습된 사용자 어댑터가 아니라 **미학습 zero-B 어댑터 fixture**이므로 그 결과를 사용자의 품질 향상으로 쓰지 않는다.
+아래에는 실제 로컬 통합 검사와 별도 CUDA VM의 실행 예시를 구분해 기록한다. 로컬 검증 입력은 기존 학습 어댑터가 아니라 **미학습 zero-B 어댑터 fixture**이므로 CUDA 학습 후보와 시작 조건이 다르다. 두 실행 사이의 loss 차이를 CPU/GPU 효과나 품질 우열로 해석하지 않는다.
 
 ### 실제 CPU NF4 검증 예시
 
@@ -414,6 +414,30 @@ SAVED final_test.json | no retraining during check; no registration/deployment
 
 표준 라이브러리 검사는 고정 데이터/오염 거부, dev 정답 우선·loss/횟수 동률 처리, 잘못된 dev 값 거부, flat helper 배치, 출력 덮어쓰기 거부,32장 가이드 검사 포함을 확인했다. 문서 검사기의 `training_executed: false`는 그 문서 검사 명령이 학습을 하지 않았다는 뜻이며, 위 실제 CPU 통합 검사의 최적화 실행까지 없었다는 뜻은 아니다.
 
+
+### 별도 CUDA VM 실행 예시
+
+다음은 기존 학습 QLoRA 어댑터에서 출발한 CUDA VM의 제공된 콘솔 출력이다. 코드4개 생성 뒤 아래 학습·복원·최종 test 결과와 셸 복귀를 확인했다. VM의 전체 `report.json`/`final_test.json` 파일을 직접 다시 읽은 결과와는 구분한다.
+
+```text
+DEVICE=cuda:0 NF4=210 TRAINABLE=230400
+STEP=0 train=0/8 loss=10.493134
+STEP=0 dev=0/4 loss=9.391413
+STEP=20 train=0/8 loss=7.829241
+STEP=20 dev=0/4 loss=7.103381
+STEP=60 train=0/8 loss=3.235943
+STEP=60 dev=0/4 loss=3.677019
+SELECTED_ADDITIONAL_STEPS=60 TEST_NOT_RUN=True
+SAVED report.json | existing model/registry/quality gate unchanged
+RESTORE=PASS (fresh-process dev text/logits)
+FINAL_TEST baseline=0/4 selected=0/4
+TEST_ACCURACY_IMPROVED=False
+SAVED final_test.json | no retraining during check; no registration/deployment
+```
+
+세 후보의 train 정답 수는 모두0/8, dev는 모두0/4였다. dev 정답 수가 동률이므로 dev loss가 가장 낮은 추가60회를 선택했다. **loss는 감소했지만 생성 정답 수는 늘지 않았고, 최종 test도0/4→0/4였다.** 따라서 학습량 비교·어댑터 저장·새 프로세스 복원·선택 후 test 실습은 완료됐지만 정답률 개선이나 품질 승인 배포를 달성한 것은 아니다. 문항별 생성 문자열을 이 콘솔만으로 알 수 없으므로 형식 오류인지 다른 라벨/무관한 답변인지 단정하지 않는다.
+
+실행 중 bitsandbytes CUDA backend의 `_check_is_size` 관련 `FutureWarning`도 출력됐다. 이 로그에서는 경고 뒤 학습·복원·최종 test·저장과 셸 복귀까지 이어졌다. 경고 해소나 향후 버전 호환성을 검증한 것은 아니며, 결과 기록을 위해 패키지를 바꾸거나 실습을 다시 실행하지 않는다. 수치 종료 코드는 콘솔에 별도로 제시되지 않았다.
 
 실행 중 `STEP=0/20/60 train=... dev=...`가 보인다. `SELECTED_ADDITIONAL_STEPS`는 dev 기준 선택이며 추가60회를 반드시 선택하는 것은 아니다. `TEST_NOT_RUN=True`는 후보 선택까지 test 생성을 하지 않았다는 뜻이다. 이어서 새 프로세스에서 `RESTORE=PASS`, `FINAL_TEST baseline=... selected=...`, `TEST_ACCURACY_IMPROVED=...`, `SAVED final_test.json`을 확인한다. 숫자는 환경·입력 모델에 따라 달라지며 성공 출력 숫자를 맞추기 위해 학습 조건을 바꾸지 않는다.
 

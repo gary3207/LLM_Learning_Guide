@@ -165,6 +165,6 @@ network current status -> {'healthy': 1}
 
 [31장 독립 평가 데이터 설계](31-evaluation-data.md)는 문장 틀별 train8/dev4/test4와 기존 진단6개를 분리합니다. 데이터 준비·중복/라벨/그룹 검사·JSON 읽기 일치·덮어쓰기 거부를 로컬에서 확인했습니다. 별도 Ubuntu VM에서도 `prepare_evaluation_data.py` 생성·같은 문항 수·CHECK=PASS·`evaluation_splits_v1.json` 저장·모델 실행/학습 없음·셸 복귀를 확인했습니다. 데이터 준비는 완료됐으며 다음은32장 품질 개선 묶음입니다. 기존 품질0/8이 개선된 사용자 결과는 아직 없습니다.
 
-[32장 QLoRA 품질 개선](32-quality-improvement.md)은 같은 기존 어댑터·train8개·SGD 조건에서 추가0/20/60회 비교, dev 기준 선택, 새 저장물의 별도 프로세스 복원, 선택 후 최종 test를 연결합니다. 로컬 검증은 미학습 zero-B 입력을 사용하므로 사용자 CUDA 후보의 개선 결과와 다릅니다. VM에서는 `improve_qlora.py train --device cuda` 뒤 `check --device cuda`를 실행하고 report/final_test와 복원 출력을 확인합니다. 기존 모델/레지스트리/품질 게이트를 변경하지 않으며 optimizer/scheduler/RNG까지 복구하는 학습 재개는 다음 묶음입니다.
+[32장 QLoRA 품질 개선](32-quality-improvement.md)은 별도 CUDA VM에서 추가0/20/60회 비교·dev 선택·새 저장물 복원·최종 test까지 확인했습니다. 세 시점 모두train0/8·dev0/4이며 dev loss9.391413→7.103381→3.677019로60회를 선택했습니다. dev 생성/logits 복원 통과·test0/4→0/4·두 보고서 저장·셸 복귀로 비교 실습은 완료됐지만 정답률 개선은 없었습니다. FutureWarning은 출력됐으나 이번 실행의 완료와 구분하고 패키지를 바꾸지 않았습니다. 기존 모델/레지스트리/품질 게이트는 유지하며 다음은 optimizer/scheduler/RNG까지 복구하는 학습 재개입니다.
 
 [← 이전: 문맥 확장](06-context-window.md) · [목차](README.md) · [다음: Attention 입문 →](08-attention.md)
