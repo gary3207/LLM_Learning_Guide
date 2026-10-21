@@ -1,6 +1,6 @@
 # 28. 승인 근거로 배포하고 실패하면 이전 버전 복구하기
 
-[← 이전: 평가 파이프라인](27-evaluation-pipeline.md) · [목차](README.md)
+[← 이전: 평가 파이프라인](27-evaluation-pipeline.md) · [목차](README.md) · [다음: 운영 관찰·부하 검사 →](29-operations-load.md)
 
 ## 1. 목표와 경계
 
@@ -523,4 +523,4 @@ python source/check_guide.py
 
 다음 묶음은 **운영 관찰·부하 검사**입니다. 이번 장은 단일 작성자·단일 전용loopback 서비스의 순차 전환이며, 운영 관찰·동시 부하·Docker 패키징은 후속 범위입니다.
 
-[← 이전: 평가 파이프라인](27-evaluation-pipeline.md) · [목차](README.md)
+[← 이전: 평가 파이프라인](27-evaluation-pipeline.md) · [목차](README.md) · [다음: 운영 관찰·부하 검사 →](29-operations-load.md)
