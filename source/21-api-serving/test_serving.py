@@ -25,6 +25,7 @@ for body in [b'[]', b'null', b'{}', b'bad json', b'\xff', b'{"prompt":"\\ud800"}
 print("PASS: request JSON/type/length/token-limit contract")
 
 measured = "--metrics" in sys.argv
+registered = "--registered" in sys.argv
 if measured:
     assert 'parser.add_argument("--metrics"' in script.read_text(encoding="utf-8"), "metrics option missing"
 
@@ -88,9 +89,31 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
     tokenizer.save_pretrained(fixture)
     (fixture / "qlora_settings.json").write_text(json.dumps(settings), encoding="utf-8")
     before_fixture = hashes(fixture)
+    server_script = script
+    server_args = [str(fixture)]
+    if registered:
+        server_script = script.parents[1] / "24-registered-serving/01-serve-selected.py"
+        selected_spec = importlib.util.spec_from_file_location("selected_server", server_script)
+        assert selected_spec is not None and selected_spec.loader is not None
+        selected_api = importlib.util.module_from_spec(selected_spec)
+        selected_spec.loader.exec_module(selected_api)
+        store = Path(temporary) / "registry"
+        performance_report = Path(temporary) / "synthetic_report.json"
+        performance_report.write_text('{"summary":{"fixture_only":true}}', encoding="utf-8")
+        selected_api.registry.register(store, "zero-fixture-v1", fixture, performance_report)
+        selected_api.registry.select(store, "zero-fixture-v1")
+        before_store, before_report = hashes(store), performance_report.read_bytes()
+        server_args = ["--registry", str(store)]
+        # Exercise the documented VM's three flat filenames, not only the repository fallback.
+        flat = Path(temporary) / "source"
+        flat.mkdir()
+        for source, name in [(server_script, "smollm2_serve_selected.py"), (script, "smollm2_api_metrics.py"),
+                             (script.parents[1] / "23-model-registry/01-model-registry.py", "smollm2_registry.py")]:
+            (flat / name).write_bytes(source.read_bytes())
+        server_script = flat / "smollm2_serve_selected.py"
     env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
     with (Path(temporary) / "server.stderr").open("w+", encoding="utf-8") as errors:
-        proc = subprocess.Popen([sys.executable, "-u", str(script), str(fixture), "--device", "cpu", "--port", "0"]
+        proc = subprocess.Popen([sys.executable, "-u", str(server_script), *server_args, "--device", "cpu", "--port", "0"]
                                 + (["--metrics"] if measured else []),
                                 stdout=subprocess.PIPE, stderr=errors, text=True, encoding="utf-8", env=env)
         try:
@@ -113,6 +136,16 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
                     return exc.code, json.load(exc)
 
             status, health = call("/health")
+            if registered:
+                assert " | version=zero-fixture-v1" in line
+                identity = health.pop("model_version")
+                assert identity == {"version": "zero-fixture-v1", "base_model": api.MODEL,
+                    "revision": api.REVISION, "manifest_sha256": selected_api.registry.fingerprint(
+                        selected_api.registry.version_path(store, "zero-fixture-v1"))["sha256"]}
+                # A live pointer change must not relabel an already-loaded model.
+                selected_api.registry.register(store, "zero-fixture-v2", fixture, performance_report)
+                selected_api.registry.select(store, "zero-fixture-v2")
+                assert call("/health")[1]["model_version"] == identity
             assert status == 200 and health == {"status": "ok", "device": "cpu", "quantized_modules": 210}
             for prompt, limit in [("Device gpu status? Reply with one word.", 8),
                                   ("Device network status? Reply with one word.", 4)]:
@@ -127,11 +160,16 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
                             "input_tokens": ids.shape[1], "generated_tokens": generated.shape[1] - ids.shape[1]}
                 status, response = call("/generate", json.dumps({"prompt": prompt, "max_new_tokens": limit}).encode(),
                                         {"Content-Type": "application/json"})
+                if registered:
+                    assert response.pop("model_version") == identity
                 if measured:
                     metrics = response.pop("metrics")
                     assert metrics["generation_seconds"] > 0 and metrics["cuda_memory"] is None, metrics
                 assert status == 200 and response == expected, response
                 print("HTTP 200 real NF4 untrained fixture:", json.dumps(response, ensure_ascii=False))
+            if registered:
+                selected_api.registry.select(store, "zero-fixture-v1")
+                before_store = hashes(store)
             for body, headers, expected_status in [
                 (b'null', {"Content-Type": "application/json"}, 400),
                 (b'{bad', {"Content-Type": "application/json"}, 400),
@@ -172,6 +210,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary:
             proc.terminate()
             proc.wait(timeout=30)
     assert hashes(fixture) == before_fixture, "server modified adapter/tokenizer/settings"
+    if registered:
+        assert hashes(store) == before_store and performance_report.read_bytes() == before_report
+        print("PASS: selected registry real CPU NF4/live HTTP identity; startup snapshot survives pointer switch; registry/report unchanged by server")
     path = fixture / "qlora_settings.json"
     valid = path.read_bytes()
     data = json.loads(valid); data["revision"] = "wrong-revision"

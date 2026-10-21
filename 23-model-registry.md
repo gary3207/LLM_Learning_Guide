@@ -1,6 +1,6 @@
 # 23 · MLOps 입문: 모델·설정·보고서의 버전 등록과 선택
 
-[← 이전: 서빙 성능](22-serving-benchmark.md) · [목차](README.md)
+[← 이전: 서빙 성능](22-serving-benchmark.md) · [목차](README.md) · [다음: 등록 버전 API →](24-registered-serving.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -322,4 +322,4 @@ SELECTED qlora-v1
 - [Python3.12 os.replace](https://docs.python.org/3.12/library/os.html#os.replace)
 - [MLflow 모델 레지스트리 개념](https://mlflow.org/docs/latest/ml/model-registry/): 버전·metadata·lineage·alias의 확장 사례. 이번 코드는 MLflow 구현/호환 API가 아니며 MLflow를 설치하지 않습니다.
 
-[← 이전: 서빙 성능](22-serving-benchmark.md) · [목차](README.md)
+[← 이전: 서빙 성능](22-serving-benchmark.md) · [목차](README.md) · [다음: 등록 버전 API →](24-registered-serving.md)
