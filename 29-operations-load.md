@@ -359,7 +359,7 @@ printf 'LOAD_EXIT_CODE=%s\n' "$result"
 - 단계 집계:22장의 `summarize`를 성공 행에만 적용하고 요청 지연 합과 wall time 기준 토큰 속도를 구분해 이름 붙입니다. 실패 행은 삭제하지 않습니다.
 - `main`: 단계별SUMMARY와 저장 경로를 출력합니다. 전체 `ok`는 품질 승인이 아니라 probe·워밍업·측정·마지막health의 정상 여부입니다.
 
-실행 성공 여부는 측정이 정상적으로 끝났는지를 말할 뿐 **질문에 정답을 생성했는지**나 **모델이 품질 승인을 받았는지**를 말하지 않습니다. 실제 CUDA VM 수치는 아직 미확인입니다. 실행하지 않은 지연·토큰 속도·메모리 예시 숫자를 만들지 않습니다.
+실행 성공 여부는 측정이 정상적으로 끝났는지를 말할 뿐 **질문에 정답을 생성했는지**나 **모델이 품질 승인을 받았는지**를 말하지 않습니다. 별도 CUDA VM 실행 예는 아래에 로컬 CPU 결과와 구분해 기록했습니다. 그 수치를 다른 환경의 보장값으로 사용하지 않습니다.
 
 1. 순차·동시 단계의 시도/성공/실패 수가 의도한 요청 수와 맞는지 봅니다.
 2. 의도한400 probe가 정상 거부됐는지, 측정 단계 오류와 분리됐는지 봅니다.
@@ -378,7 +378,7 @@ printf 'LOAD_EXIT_CODE=%s\n' "$result"
 |---|---|
 | 표준 라이브러리의 실제 loopback HTTP 검사 | 10개 검사 통과. 합성 transport의 요청 수·400 분리·실패 보관·순차 서버와 동시 클라이언트·요약 분모·입출력 보호. 동시 클라이언트 최대4와 서버 처리 최대1을 별도로 확인 |
 | 실제 CPU NF4 검사 | 기존24장 서버/22장측정·실제 모델 생성과 새 클라이언트 연결 통과. 210개 NF4 모듈·워밍업2건·각 단계6건 성공/0실패·예상400·식별 정보 일치·기존 입력 보존·테스트 리스너 종료 재조회. 미학습 fixture이며 학습 모델 품질·GPU 성능이 아님 |
-| 별도 CUDA VM | 새 실행 결과를 받기 전에는 미확인. 로컬 CPU 측정값을 A10 기준값으로 옮기지 않음 |
+| 별도 CUDA VM | 순차/동시 각6건 성공·0실패·보고서 저장·클라이언트 종료0 확인. CUDA allocator 관찰값을 실제 출력으로 보존. 서버READY/정상 종료 로그는 별도 미확인 |
 
 테스트 정본: [test_load.py](source/29-operations-load/test_load.py). 표준 라이브러리 검사 명령입니다. 합성 응답을 검증하는 테스트이며 모델 추론 결과가 아닙니다.
 
@@ -398,6 +398,29 @@ Windows/Python3.12·CPU·미학습 어댑터에서 실제 생성한 한 실행�
 | 동시 | 3 | 6/0 | 12.154 | 14.166 | 1.975 |
 
 이 실행에서는 동시 요청의 지연이 늘었고 처리량은 개선되지 않았습니다. 단일 요청 서버에 클라이언트 수만 늘린 결과이며 일반적인 용량 결론은 아닙니다. CPU의CUDA 메모리 값은 `null`입니다. 같은 수치의 재현·A10 GPU 속도·학습 모델 품질을 보장하지 않습니다. 테스트 프로세스는 별도로 정리하고 포트 종료를 재조회했지만, 이는 VM에서Ctrl+C로 종료했다는 증거가 아닙니다.
+
+### 별도 CUDA VM의 실제 관찰 예
+
+아래는 별도 CUDA VM의 실제 실행 출력입니다. 로컬 CPU 미학습 fixture 수치와 구분합니다. 두 단계 모두6건 성공·0건 실패이고 보고서 저장 뒤 클라이언트가 종료0으로 셸에 복귀했습니다.
+
+```text
+CREATED smollm2_observe_load.py 12880 bytes
+SUMMARY {"name": "sequential", "workers": 1, "phase_wall_seconds": 2.7231570290168747, "max_observed_cuda_memory": {"peak_allocated_bytes": 184592384, "peak_reserved_bytes": 331350016}, "no_http_status_count": 0, "failure_count": 0, "http_status_counts": {"200": 6}, "summary": {"requests": 6, "e2e_median_seconds": 0.4539858559874119, "e2e_min_seconds": 0.45260598900495097, "e2e_max_seconds": 0.45434278799802996, "generation_tokens_per_second": 17.699766372505735, "tokens_per_sum_client_seconds": 17.63114398717225, "tokens_per_phase_wall_second": 17.626600114694508, "successful_requests_per_phase_wall_second": 2.2033250143368135, "e2e_p95_seconds": 0.45434278799802996, "mean_client_minus_generation_seconds": 0.001759169841534458}}
+SUMMARY {"name": "concurrent", "workers": 3, "phase_wall_seconds": 2.720901683002012, "max_observed_cuda_memory": {"peak_allocated_bytes": 184592384, "peak_reserved_bytes": 331350016}, "no_http_status_count": 0, "failure_count": 0, "http_status_counts": {"200": 6}, "summary": {"requests": 6, "e2e_median_seconds": 1.3595823969808407, "e2e_min_seconds": 0.4542930930037983, "e2e_max_seconds": 1.3602752500155475, "generation_tokens_per_second": 17.702867275402696, "tokens_per_sum_client_seconds": 7.058120381845497, "tokens_per_phase_wall_second": 17.64121074269794, "successful_requests_per_phase_wall_second": 2.2051513428372425, "e2e_p95_seconds": 1.3602752500155475, "mean_client_minus_generation_seconds": 0.6815420429969284}}
+SAVED ../serving_load_v1.json
+LOAD_EXIT_CODE=0
+```
+
+| 단계 | 클라이언트 작업 수 | 성공/실패 | 지연 중앙값(ms) | p95(ms) | 단계 wall time 기준 토큰/초 |
+|---|---:|---:|---:|---:|---:|
+| 순차 | 1 | 6/0 | 453.99 | 454.34 | 17.63 |
+| 동시 | 3 | 6/0 | 1359.58 | 1360.28 | 17.64 |
+
+표는 지연·속도를 소수 둘째 자리로 표시했습니다. 두 단계의 peak allocated는176.04MiB, peak reserved는316.00MiB로 같았습니다. 이 값은 관찰된 CUDA allocator 최대값이며 전체 GPU VRAM이나GPU 사용률이 아닙니다.
+
+이 표본에서 동시 요청의 중앙 지연은 약3배가 됐지만 단계 처리량은 거의 같았습니다. 한 번에 하나를 처리하는 서버에 요청이 겹쳤다는 설명과 맞으며, GPU 병렬 추론의 처리량 개선이나 최대 용량을 증명하지 않습니다. `mean_client_minus_generation_seconds` 역시 정확한 큐 대기 시간이 아닙니다.
+
+종료0은 진단 검사가 정상 완료됐다는 뜻이지 응답의 정답 품질·승인 배포가 아닙니다. 이 로그에는 서버의READY나Ctrl+C 종료 메시지가 없으므로 서버 종료는 별도 확인해야 합니다. 저장된 전체 JSON을 직접 읽은 결과나 장시간 안정성 검사로 확대하지 않습니다.
 
 이번 보고서는 관찰 시점의 작은 요청 묶음입니다. 모니터링 서비스·알림·대시보드·연속 자원 수집·운영 SLO·최대 처리 용량 검증·권한 통제·실제 승인 배포·모델 개선을 대신하지 않습니다. 레지스트리와 파일을 다른 작성자가 실행 중 함께 바꾸지 않는 로컬 실습 범위입니다.
 
