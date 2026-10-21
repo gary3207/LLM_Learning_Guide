@@ -261,7 +261,37 @@ B가 끝난 뒤 **A에서 Ctrl+C**를 누른다. A의 `서버 종료` 출력과 
 sudo -n docker ps -a --filter 'name=^/smollm2-runtime-v1$'
 ```
 
-READY·보고서 성공과 정상 종료는 각각의 실제 출력으로 확인한다. 아직 위 모델 실행·종료 출력이 제공되지 않았으므로 아래 표에서도 미확인으로 둔다.
+### 실제 모델 실행·검사와 대상 제거 결과
+
+다음은 위 이미지의 실제 CUDA VM 실행 예시다. 두 bind mount는 읽기 전용이고, 검사 프로그램은 선택한 버전과 health/생성 응답의 전체 identity를 대조한다.
+
+```text
+CONTAINER_STATE true sha256:ac474c3aa23c467f4aebb6e23dc47a040cd0e52c94c057625692fda1ef5f48fc
+USER=1001:1001 NETWORK=host MOUNTS=[{"Type":"bind","Source":"/home/ubuntu/.cache/huggingface/hub","Destination":"/cache/hub","Mode":"","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"/home/ubuntu/llm-lab","Destination":"/home/ubuntu/llm-lab","Mode":"","RW":false,"Propagation":"rprivate"}]
+SUMMARY {"name": "sequential", "workers": 1, "phase_wall_seconds": 0.9381861249858048, "max_observed_cuda_memory": {"peak_allocated_bytes": 184592384, "peak_reserved_bytes": 331350016}, "no_http_status_count": 0, "failure_count": 0, "http_status_counts": {"200": 2}, "summary": {"requests": 2, "e2e_median_seconds": 0.4688409750087885, "e2e_min_seconds": 0.46866083701024763, "e2e_max_seconds": 0.4690211130073294, "generation_tokens_per_second": 17.143467351875184, "tokens_per_sum_client_seconds": 17.06335501040633, "tokens_per_phase_wall_second": 17.05418527719336, "successful_requests_per_phase_wall_second": 2.13177315964917, "e2e_p95_seconds": 0.4690211130073294, "mean_client_minus_generation_seconds": 0.0021909189963480458}}
+SUMMARY {"name": "concurrent", "workers": 2, "phase_wall_seconds": 0.9444900770031381, "max_observed_cuda_memory": {"peak_allocated_bytes": 184592384, "peak_reserved_bytes": 331350016}, "no_http_status_count": 0, "failure_count": 0, "http_status_counts": {"200": 2}, "summary": {"requests": 2, "e2e_median_seconds": 0.7088632179948036, "e2e_min_seconds": 0.4738392689905595, "e2e_max_seconds": 0.9438871669990476, "generation_tokens_per_second": 17.02125577219422, "tokens_per_sum_client_seconds": 11.2856751442542, "tokens_per_phase_wall_second": 16.940357966245568, "successful_requests_per_phase_wall_second": 2.117544745780696, "e2e_p95_seconds": 0.9438871669990476, "mean_client_minus_generation_seconds": 0.238862643003813}}
+SAVED ../container_load_v1.json
+CONTAINER_REPORT {"ok": true, "expected_identity": {"version": "qlora-v1", "base_model": "HuggingFaceTB/SmolLM2-135M-Instruct", "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac", "manifest_sha256": "bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0"}, "health": {"status": "ok", "device": "cuda:0", "quantized_modules": 210, "model_version": {"version": "qlora-v1", "manifest_sha256": "bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0", "base_model": "HuggingFaceTB/SmolLM2-135M-Instruct", "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac"}}}
+CONTAINER_CHECK_EXIT_CODE=0
+```
+
+| 단계 | 클라이언트 수 | 성공/실패 | 지연 중앙값(ms) | p95(ms) | 단계 wall time 기준 토큰/초 |
+|---|---:|---:|---:|---:|---:|
+| 순차 | 1 | 2/0 | 468.84 | 469.02 | 17.05 |
+| 동시 | 2 | 2/0 | 708.86 | 943.89 | 16.94 |
+
+양쪽 CUDA allocator peak allocated는 176.04MiB, peak reserved는 316.00MiB였다. 이는 전체 GPU 사용량이 아니다. 요청이 겹치면서 지연이 늘었고 단계 처리량은 비슷했지만, 각2개 표본만으로 일반 성능·용량이나 29장과의 속도 우열을 결론내리지 않는다. 단일 요청 서버가 컨테이너로 인해 GPU 병렬 서버가 된 것도 아니다.
+
+검사 뒤 대상 컨테이너 조회에서는 헤더만 출력됐다.
+
+```text
+sudo -n docker ps -a --filter 'name=^/smollm2-runtime-v1$'
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+따라서 이 이름의 컨테이너가 더 이상 존재하지 않음은 확인했다. A의 `서버 종료` 문구 자체는 제시되지 않았으므로 애플리케이션의 정상 종료 로그를 별도로 확인했다고 쓰지 않는다. 이 한계를 이유로 모델 추론·보고서·제거 확인을 취소하거나 실습을 다시 실행할 필요는 없다.
+
+위 기록은 SUMMARY와 CONTAINER_REPORT 일부이며 저장된 전체 보고서나 모든 생성 응답을 직접 읽은 결과는 아니다. 모델은 `qlora-v1`, CUDA 장치와 NF4 모듈210개가 확인됐지만 품질은 재평가하지 않았다. 기존 `0/8`과 승인 배포 거부는 유지한다.
 
 ## 6. 지금 확인된 것과 미확인인 것
 
@@ -271,14 +301,15 @@ READY·보고서 성공과 정상 종료는 각각의 실제 출력으로 확인
 | context·원본 보존·기존 출력 거부 | Windows stdlib 검사 5개 통과·심볼릭 링크 2개 권한상 건너뜀; Linux WSL 7개 모두 통과 |
 | 레시피와 패키지 고정·공식 CUDA wheel 존재 | 정본/index 확인과 별도 VM 이미지 내부 주요 여섯 패키지 버전 일치 확인 |
 | 이미지 빌드·PyTorch CUDA tensor | 위 VM 실행 예시에서 빌드0·검사0, Python3.12.15·CUDA12.8·cuda:0·A10 확인 |
-| NF4 모델의 컨테이너 HTTP 추론·종료 | 아직 실행 출력 대기 |
+| NF4 모델의 컨테이너 HTTP 추론 | cuda:0·NF4 210·전체 health identity 일치·순차/동시 각2성공0실패·보고서/종료0 확인 |
+| 이번 컨테이너 제거 | 대상 이름의 docker ps -a 조회가 헤더만 출력. A의 정상 종료 문구 자체는 미제공 |
 | 품질 승인·승인 배포·롤백 | 이번 진단 이미지로 수행한 것이 아님 |
 
 Windows/WSL 검사 환경에는 Docker 엔진이 없어, 파일 검사 결과를 실제 Docker 빌드 성공으로 대신하지 않았다.
 
 ## 7. 이 묶음 이후 남은 학습
 
-Docker의 실제 모델 실행까지 확인하면 LLMOps 입문의 **품질 → 추적 → 파이프라인 → 배포·복구 경로 → 관찰 → 실행환경 패키징** 연결을 정리할 수 있다. 모든 운영 문제가 해결되거나 학습 모델이 승인됐다는 뜻은 아니다.
+위 실행 예시로 Docker 묶음의 **준비 → 이미지 빌드/CUDA → 기존 모델 API/검사·대상 제거 → 결과 정리**가 연결됐다. LLMOps 입문의 **품질 → 추적 → 파이프라인 → 배포·복구 경로 → 관찰 → 실행환경 패키징** 여섯 묶음도 이 학습 범위에서 정리했다. 다만 실제 학습 모델의 품질은0/8이므로 승인된 모델의 운영 배포·롤백은 수행하지 않았다. 모든 운영 문제가 해결됐거나 프로덕션 품질을 확보했다는 뜻이 아니다.
 
 그 다음은 다음 순서가 적합하다. 지금 자동으로 재학습을 시작하지 않는다.
 
