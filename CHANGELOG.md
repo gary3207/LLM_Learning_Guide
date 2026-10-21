@@ -1,5 +1,11 @@
 # 변경 내역
 
+## 2026-10-21 · CUDA 파이프라인 결과
+
+- `qlora-v1` 새 평가0/8·Evaluate=blocked→Verify=passed→Decision=halted_quality·종료2·새run_id·run/quality/소스 지문과 셸 복귀 확인.
+- followup=skipped/deployed=false는 의도한 품질 차단 결과. FutureWarning은 있었지만 평가·검증·판정 완료. 실제 승인 배포·롤백으로 해석하지 않음.
+- 결과 문서만 반영. 기존 코드·모델·레지스트리·보고서 변경, 원격 재실행이나 재학습 없음.
+
 ## 2026-10-21 · 평가 파이프라인
 
 - 27장: 기존26장 새 평가1회→보관 결과 검증→다음 단계 허용/중단을 단일 명령으로 연결. 같은run_id의pipeline.json에 단계·판정·run/quality/자체 소스 지문 연결.

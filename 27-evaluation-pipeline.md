@@ -200,7 +200,7 @@ python smollm2_track_run.py list --runs ../llmops_runs_v1
 |---|---|
 | 로컬 합성 평가 경계 | 승인0/미달2/평가 오류1·단계 건너뛰기·결과/입력/소스 변경 차단·새 실행만 사용·기존 파일 보존·exclusive 쓰기·평평한 파일 배치 검사 통과. 모델 품질 검증이 아님 |
 | 로컬 실제 CPU NF4·미학습 zero-B | 실제8문항 생성0/8. Evaluate=blocked → Verify=passed → Decision=halted_quality, CLI2. 새pipeline/run/quality 연결 및 기존 원본/모델/등록/보고서 보존 검사 통과 |
-| 별도 VM의 파이프라인 실행 | 아직 미확인.26장 CUDA 추적 완료는27장 실행 완료 증거가 아님 |
+| 별도 CUDA VM의 파이프라인 실행 | `qlora-v1`·8문항0/8·Evaluate=blocked → Verify=passed → Decision=halted_quality·종료2·followup=skipped/deployed=false·새 실행 ID·결과 지문·셸 복귀 확인 |
 
 실제 CPU 검사의 판정 필드 발췌입니다. 실행 ID·경로·해시는 실행마다 달라질 수 있습니다.
 
@@ -219,6 +219,37 @@ python smollm2_track_run.py list --runs ../llmops_runs_v1
 ```
 
 이 검사는 미학습 fixture의 실제 추론과 연결 검증이며 학습 후보의 CUDA 품질·합격 모델 배포·운영 안정성 증거가 아닙니다. 기준은 기존에 본 합성 진단8문항 그대로이며 품질 합격을 만들기 위해 기준을 낮추거나 재학습하지 않습니다.
+
+### 별도 CUDA VM 실행 예시
+
+기존 선택 `qlora-v1`을 새로 평가한 실행에서도 위의 `halted_quality`·단계 상태·`followup=skipped`·`deployed=false`를 확인했습니다. 여덟 생성문은26장 CUDA 예시와 같았고, 모델 품질은0/8로 미달이었습니다.
+
+```text
+CREATED smollm2_pipeline.py 5047 bytes
+BLOCKED 0/8
+PIPELINE_EXIT_CODE=2
+```
+
+출력 JSON의 파일 지문 발췌입니다. 실행 ID와 경로는 실행마다 달라집니다.
+
+```json
+{
+  "run_file": {
+    "sha256": "57c63bdfc35966eb784370ca230edd32e9143eacdcdab4807103d429610b4e9c",
+    "bytes": 5540
+  },
+  "quality_file": {
+    "sha256": "136c94b319936f725e03e7ba786cf680ea6d427b424f7890d4040db7141a0d5f",
+    "bytes": 3293
+  }
+}
+```
+
+선택 식별 정보는 기존 `qlora-v1`·manifest `bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0`·고정 원본/revision과 일치했습니다. 파이프라인 소스는5,047bytes·SHA256 `7b11a6ed7db2415381619df61fbf518324b75bcfbf5071f2d5d76da0b5252c16`이었습니다.
+
+26장과quality_file 지문이 같아도 실행 ID는 새로 생성됐습니다. 같은 보고서 내용이면 지문이 같을 수 있으며, **결과 내용의 지문과 실행 ID는 다른 개념**입니다. 이번 출력은 새run.json 지문과 단계 결과를 함께 보여줍니다.
+
+`bitsandbytes`의 `_check_is_size` FutureWarning은 있었지만 평가·검증·판정과 셸 복귀는 완료됐습니다. 로그와 출력 JSON을 확인한 예시이며, 원격 파일 직접 읽기·경고 해결·실제 배포·이전 버전 롤백 증거는 아닙니다.
 
 한 명의 신뢰된 로컬 작성자를 전제로 합니다. 전후 지문 확인은 동시 변경에 대한 원자적 스냅샷·잠금·서명이 아닙니다. 지문만으로 코드나 모델을 복원하지 못하고 동일 출력도 보장하지 않습니다. 실행 기록과 승인 판정은 실제 운영 배포·접근 제어와 구분합니다.
 
