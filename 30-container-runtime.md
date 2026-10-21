@@ -163,9 +163,21 @@ printf 'IMAGE_CHECK_EXIT_CODE=%s\n' "$result"
 
 오류가 나면 해당 오류와 종료 코드를 먼저 확인한다. 실패한 빌드의 context를 지우거나 준비 명령으로 덮어쓰지 않는다. context는 남겨 두고 원인을 확인한 뒤 빌드 명령만 다시 실행할 수 있다. 이미 태그가 만들어졌다면 임의로 제거·재지정하지 않는다.
 
-## 5. 모델 연결과 API 확인 — 다음 단계
+### 실제 이미지 빌드·CUDA 실행 예시
 
-이미지 검사까지 성공한 뒤 진행한다. 여기서는 실행 구조를 먼저 이해한다.
+```text
+IMAGE_ID=sha256:ac474c3aa23c467f4aebb6e23dc47a040cd0e52c94c057625692fda1ef5f48fc
+IMAGE_BUILD_EXIT_CODE=0
+IMAGE_ENV {"python": "3.12.15", "packages": {"torch": "2.11.0+cu128", "transformers": "4.57.1", "peft": "0.17.1", "bitsandbytes": "0.48.2", "accelerate": "1.15.0", "huggingface_hub": "0.36.2"}, "torch_cuda": "12.8", "cuda_available": true}
+CUDA_TENSOR cuda:0 1.0 NVIDIA A10
+IMAGE_CHECK_EXIT_CODE=0
+```
+
+이 실행 예시에서는 이미지 빌드와 이미지 내부 PyTorch CUDA tensor가 성공했다. 컨테이너 Python은 **3.12.15**로 호스트의 **3.12.3**과 다르며, 지정한 주요 패키지 여섯 개는 일치한다. 다른 환경의 이미지 ID나 패치 버전이 같을 것이라고 가정하지 않는다. 모델·NF4 추론·API·정상 종료는 이 출력만으로 확인되지 않는다.
+
+## 5. 모델 연결과 API 확인
+
+이미지 검사까지 성공한 뒤 진행한다. 같은 VM의 터미널 두 개를 사용하며, 기존24장 서버와29장 클라이언트를 재사용한다. 새 모델 서버·HTTP 클라이언트나 품질 우회를 추가하지 않는다.
 
 - **코드·라이브러리**는 이미지의 `/opt/llm`에서 실행한다. 호스트 `.venv`를 연결하지 않는다.
 - **모델·레지스트리·평가 파일**은 `~/llm-lab`을 기존과 같은 절대 경로에 읽기 전용으로 연결한다. 기존 레지스트리의 절대 경로를 수정하지 않기 위해서다.
@@ -176,14 +188,89 @@ printf 'IMAGE_CHECK_EXIT_CODE=%s\n' "$result"
 
 실행 후에는 이번 컨테이너의 READY·이미지 ID·실행 상태·읽기 전용 mount를 확인하고, `/health`와 `/generate`의 전체 모델 식별자가 호스트 선택 기록과 같은지 검사한다. 생성된 글이 정답인지 여부는 품질 검사와 별개다. 사용 후 해당 컨테이너만 종료하고 자동 제거를 확인한다.
 
+### 터미널 A — 모델 서버
+
+빌드가 기록한 이미지 ID를 사용한다. 새 이름이 이미 사용 중이면 Docker가 거부하며 기존 컨테이너를 삭제하거나 재사용하지 않는다. `--rm`은 이번 컨테이너 종료 후 컨테이너를 제거하는 옵션이지 모델 파일이나 이미지를 지우는 명령이 아니다.
+
+```bash
+cd ~/llm-lab/source &&
+source .venv/bin/activate &&
+lab=$(cd .. && pwd -P) &&
+cache=$(python -c 'from huggingface_hub.constants import HF_HUB_CACHE; print(HF_HUB_CACHE)') &&
+image=$(python -c 'from pathlib import Path; print(Path("container_context_v1/image-id.txt").read_text().strip())') &&
+sudo -n docker run --rm -it --name smollm2-runtime-v1 \
+    --runtime=nvidia --gpus all --network host \
+    --user "$(id -u):$(id -g)" \
+    --mount "type=bind,src=$lab,dst=$lab,readonly" \
+    --mount "type=bind,src=$cache,dst=/cache/hub,readonly" \
+    "$image" --registry "$lab/model_registry_v1" \
+    --device cuda --metrics --port 8003
+```
+
+이번 명령의 `READY`가 나온 뒤 A는 그대로 두고 B로 이동한다. **포그라운드 서버가 기다리는 상태는 정상이다.** 로딩 오류·캐시 누락·포트 충돌로 종료되면 먼저 A의 오류를 확인하고 B를 실행하지 않는다. 다른 리스너를 임의로 종료하지 않는다.
+
+### 터미널 B — 이번 컨테이너와 기존 클라이언트 확인
+
+실행 중인 이미지와 이번 컨테이너의 bind 후 READY 로그를 먼저 확인한다. 단순히 같은 버전의 API가 응답한다는 이유만으로 새 컨테이너가 준비됐다고 판단하지 않는다. mount 출력의 `RW`는 두 항목 모두 `false`, 네트워크는 `host`여야 한다.
+
+```bash
+bash <<'CHECK'
+set -euo pipefail
+cd ~/llm-lab/source
+source .venv/bin/activate
+image=$(python -c 'from pathlib import Path; print(Path("container_context_v1/image-id.txt").read_text().strip())')
+state=$(sudo -n docker container inspect smollm2-runtime-v1 --format '{{.State.Running}} {{.Image}}')
+if [ "$state" != "true $image" ]; then
+    printf '이번 이미지의 컨테이너가 실행 중이 아닙니다: %s\n' "$state" >&2
+    exit 1
+fi
+logs=$(sudo -n docker logs smollm2-runtime-v1 2>&1)
+proto=http
+ready="READY ${proto}://127.0.0.1:8003 |"
+case "$logs" in
+    *"$ready"*) ;;
+    *) printf '%s\n컨테이너 READY가 아직 없습니다. 터미널 A를 확인하세요.\n' "$logs" >&2; exit 1 ;;
+esac
+printf 'CONTAINER_STATE %s\n' "$state"
+sudo -n docker container inspect smollm2-runtime-v1 \
+    --format 'USER={{.Config.User}} NETWORK={{.HostConfig.NetworkMode}} MOUNTS={{json .Mounts}}'
+python smollm2_observe_load.py --registry ../model_registry_v1 \
+    --port 8003 --requests 2 --workers 2 --timeout 30 \
+    --output ../container_load_v1.json
+python - <<'REPORT'
+import json
+from pathlib import Path
+report = json.loads(Path("../container_load_v1.json").read_text())
+print("CONTAINER_REPORT", json.dumps({
+    "ok": report["ok"], "expected_identity": report["expected_identity"],
+    "health": report["health_before"]["payload"],
+}, ensure_ascii=False))
+REPORT
+CHECK
+result=$?
+printf 'CONTAINER_CHECK_EXIT_CODE=%s\n' "$result"
+```
+
+기존 클라이언트가 health와 생성 응답의 전체 모델 identity, 예상400 probe, 워밍업, 순차·동시 각2개 요청을 검사하고 새 보고서만 저장한다. 이번 작은 묶음의 목적은 컨테이너 연결 검사다. 29장의 각6개 측정과 직접적인 속도 우열 비교나 품질 승인으로 해석하지 않는다. 오류·기존 보고서 충돌 시 삭제·덮어쓰기하지 말고 해당 출력을 확인한다.
+
+### 검사 후 종료
+
+B가 끝난 뒤 **A에서 Ctrl+C**를 누른다. A의 `서버 종료` 출력과 함께, B에서 아래 명령이 성공하고 대상 행이 없는지 확인한다. 이번 컨테이너만 조회하며 이미지·모델이나 다른 서비스를 삭제하지 않는다.
+
+```bash
+sudo -n docker ps -a --filter 'name=^/smollm2-runtime-v1$'
+```
+
+READY·보고서 성공과 정상 종료는 각각의 실제 출력으로 확인한다. 아직 위 모델 실행·종료 출력이 제공되지 않았으므로 아래 표에서도 미확인으로 둔다.
+
 ## 6. 지금 확인된 것과 미확인인 것
 
 | 항목 | 확인 범위 |
 |---|---|
 | Docker/NVIDIA runtime 설치 및 GPU visibility | 위 VM 실행 예시로 확인 |
 | context·원본 보존·기존 출력 거부 | Windows stdlib 검사 5개 통과·심볼릭 링크 2개 권한상 건너뜀; Linux WSL 7개 모두 통과 |
-| 레시피와 패키지 고정·공식 CUDA wheel 존재 | 파일 정본 및 공식 index 조회 확인; wheel 전체 설치·동작 검사는 아님 |
-| 이미지 빌드·PyTorch CUDA tensor | 아직 VM 실행 출력 대기 |
+| 레시피와 패키지 고정·공식 CUDA wheel 존재 | 정본/index 확인과 별도 VM 이미지 내부 주요 여섯 패키지 버전 일치 확인 |
+| 이미지 빌드·PyTorch CUDA tensor | 위 VM 실행 예시에서 빌드0·검사0, Python3.12.15·CUDA12.8·cuda:0·A10 확인 |
 | NF4 모델의 컨테이너 HTTP 추론·종료 | 아직 실행 출력 대기 |
 | 품질 승인·승인 배포·롤백 | 이번 진단 이미지로 수행한 것이 아님 |
 
