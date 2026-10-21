@@ -1,6 +1,6 @@
 # 25 · 품질 기준에 미달하면 서버 시작을 막기
 
-[← 이전: 등록 버전 API](24-registered-serving.md) · [목차](README.md)
+[← 이전: 등록 버전 API](24-registered-serving.md) · [목차](README.md) · [다음: 실행 추적 →](26-run-tracking.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -316,6 +316,6 @@ EXIT_CODE=2
 - [ ] 기존 진단 문항의 합격을 독립 최종 평가나 운영 승인으로 과장하지 않는다.
 - [ ] 이 게이트는 새 실행 경로의 분기이며 기존 서버나 다른 진입점을 막지 않음을 설명한다.
 
-다음 묶음은 **실험 추적·재현성**입니다. 현재 구현하지 않은 후속 기능을 이 장의 검증 결과에 포함하지 않습니다.
+다음 묶음은 [26장 실험 추적·재현성](26-run-tracking.md)입니다. 새 실행의 기록과 이 장의 기존 실행 결과를 구분합니다.
 
-[← 이전: 등록 버전 API](24-registered-serving.md) · [목차](README.md)
+[← 이전: 등록 버전 API](24-registered-serving.md) · [목차](README.md) · [다음: 실행 추적 →](26-run-tracking.md)

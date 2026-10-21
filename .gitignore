@@ -29,6 +29,7 @@
 !/23-model-registry.md
 !/24-registered-serving.md
 !/25-quality-gate.md
+!/26-run-tracking.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -51,6 +52,7 @@
 !/source/23-model-registry/
 !/source/24-registered-serving/
 !/source/25-quality-gate/
+!/source/26-run-tracking/
 !/source/check_guide.py
 __pycache__/
 *.pyc
