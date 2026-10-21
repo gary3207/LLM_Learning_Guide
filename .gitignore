@@ -33,6 +33,7 @@
 !/27-evaluation-pipeline.md
 !/28-deployment-rollback.md
 !/29-operations-load.md
+!/30-container-runtime.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -59,6 +60,7 @@
 !/source/27-evaluation-pipeline/
 !/source/28-deployment-rollback/
 !/source/29-operations-load/
+!/source/30-container-runtime/
 !/source/check_guide.py
 __pycache__/
 *.pyc

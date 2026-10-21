@@ -1,0 +1,7 @@
+**
+!Dockerfile
+!requirements.txt
+!app/
+!app/smollm2_serve_selected.py
+!app/smollm2_api_metrics.py
+!app/smollm2_registry.py
