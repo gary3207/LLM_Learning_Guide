@@ -125,7 +125,7 @@ network current status -> {'healthy': 1}
 
 [23장 버전 등록·선택](23-model-registry.md)은 저장한 QLoRA 폴더·설정·성능 JSON의 경로와 해시를 등록해 기존 입력이 바뀌지 않았는지 확인하고 선택한 이름을 기록합니다. 별도 VM 실행 예시는 `qlora-v1`·모델 파일11개·보고서7,260bytes 등록·선택·show 재검사 성공입니다. 로컬 합성 파일 검사와 구분하며, 등록/선택은 새 학습·품질 합격·서버 배포가 아닙니다.
 
-[24장 등록 버전 API](24-registered-serving.md)는 기존 `selected.json`의 선택을 읽어 receipt·모델·보고서를 검증하고 복원한 뒤, health와 생성 응답에서 같은 `model_version`을 확인합니다. VM에서는 `smollm2_api_metrics.py`·`smollm2_registry.py`와 새 실행 파일을 같은 폴더에 둡니다. READY를 먼저 기다리고 같은 VM의 다른 터미널에서 호출한 다음 Ctrl+C로 종료합니다. 식별 정보는 로딩한 시작 스냅샷이며 선택 변경을 자동 반영하거나 현재 파일을 요청마다 검사하지 않습니다. 새 경로의 실제 CPU NF4 미학습 fixture·HTTP·파일 배치 검사는 통과했으며 사용자 VM 실행은 별도로 확인합니다.
+[24장 등록 버전 API](24-registered-serving.md)는 기존 `selected.json`의 선택을 읽어 receipt·모델·보고서를 검증하고 복원한 뒤, health와 생성 응답에서 같은 `model_version`을 확인합니다. VM에서는 `smollm2_api_metrics.py`·`smollm2_registry.py`와 새 실행 파일을 같은 폴더에 둡니다. READY를 먼저 기다리고 같은 VM의 다른 터미널에서 호출한 다음 Ctrl+C로 종료합니다. 식별 정보는 로딩한 시작 스냅샷이며 선택 변경을 자동 반영하거나 현재 파일을 요청마다 검사하지 않습니다. 실제 CPU NF4 미학습 fixture·HTTP·파일 배치 검사와 별도 CUDA VM의 `qlora-v1`·동일 식별 정보·입력41/새8토큰 응답을 구분합니다. 한 단어 정답 생성은 실패했으며 VM 정상 종료는 아직 미확인입니다.
 
 - [ ] 등록 버전·manifest 지문·원본 revision과 응답 품질을 구분한다.
 - [ ] 선택 변경은 hot reload가 아니며 서버 재시작이 필요함을 설명한다.

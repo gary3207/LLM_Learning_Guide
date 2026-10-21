@@ -247,8 +247,8 @@ PY
 |---|---|
 | 로컬 선택형 서빙 검사 | 선택 경로·식별 정보·읽기 전용·시작 전 모델/receipt 변경 거부·로딩 중 보고서 변경 거부 통과. 합성 파일이며 추론 검사와 구분 |
 | 로컬 실제 모델·HTTP 통합 검사 | 실제 CPU NF4/미학습 zero-B 어댑터로 health·생성 응답과 직접 생성 일치·식별 정보 고정·잘못된 입력 거부·원본/후보/보고서 보존 통과. VM의 평평한 파일 배치도 검사 |
-| 사용자 VM의 READY·health/생성 식별 정보 일치 | 대기. 위 두 터미널의 실제 출력 필요 |
-| 사용자 VM의 Ctrl+C 종료 | 대기. 클라이언트 호출 뒤 확인 |
+| 별도 CUDA VM의 health/생성 식별 정보 일치 | `cuda:0`·NF4모듈210·`qlora-v1`·동일 manifest 지문·입력41/새8토큰 응답과 클라이언트 검사 통과. 아래 실행 예시와 로컬 검사를 구분 |
+| 별도 VM의 READY 원문·Ctrl+C 종료 | READY 원문은 미제공. health/생성 성공으로 서버 동작은 확인했으며, 종료는 아직 미확인 |
 | 품질 개선·동시 변경 안전성·운영 준비 | 이번 검증 대상 아님 |
 
 개발자 재검사 위치는 **저장소 루트**이며 VM의 평평한 파일 배치와 다릅니다. 첫 검사는 선택/검증/시작 경로를 검사하고, 두 번째는 실제 ML 의존성이 있는 환경에서 서버와 HTTP를 확인하기 위한 명령입니다. 합성 메타데이터 검사와 실제 모델 추론을 구분하고, 미학습 fixture를 사용한다면 학습 모델의 품질 결과라고 부르지 않습니다.
@@ -262,6 +262,38 @@ python source/check_guide.py
 고정 의존성 조합은 기존 장과 동일하게 유지합니다. 로컬 CPU 검사 환경을 마련할 때는 기존의 Python3.12·PyTorch2.9.0+cpu·Transformers4.57.1·PEFT0.17.1·bitsandbytes0.48.2 조합을 재사용하고, VM의 이미 설치된 CUDA 환경을 이 CPU 조합으로 교체하지 않습니다. 로컬 검사 통과가 CUDA 실행·학습 후보 품질·VM 정상 종료의 증거는 아닙니다.
 
 검사 소스: [test_selected.py](source/24-registered-serving/test_selected.py), [test_serving.py](source/21-api-serving/test_serving.py). 기존 API의 실제 CPU HTTP 회귀 검사와 저장소 배치의 선택형 `--metrics` 검사도 통과했습니다. 이 검사에서 서버 프로세스를 종료한 것은 별도 VM에서의 Ctrl+C 정상 종료 증거가 아닙니다.
+
+### 별도 CUDA VM 실행 예시
+
+다음은 기존 등록 QLoRA를 사용한 실제 응답입니다. 로컬 CPU의 미학습 fixture 검사와 별도 근거이며, manifest 지문은 각 환경의 등록 receipt 내용에 따라 달라집니다.
+
+```text
+health: {
+  "status": "ok",
+  "device": "cuda:0",
+  "quantized_modules": 210,
+  "model_version": {
+    "version": "qlora-v1",
+    "manifest_sha256": "bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0",
+    "base_model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac"
+  }
+}
+generate: {
+  "text": "Device GPU status:\n\nDevice GPU",
+  "input_tokens": 41,
+  "generated_tokens": 8,
+  "model_version": {
+    "version": "qlora-v1",
+    "manifest_sha256": "bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0",
+    "base_model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac"
+  }
+}
+검사 통과: health와 generate의 시작 버전·manifest 식별 정보 일치
+```
+
+두 응답의 `model_version` 전체가 같으므로 **실행 중인 서버가 보고하는 시작 버전과 receipt 식별 정보의 일치**를 확인했습니다. 생성은 입력41토큰에서 새8토큰이며, 출력문은 요청한 한 단어 정답이 아닙니다. 버전 연결 성공과 응답 품질은 별개입니다. 이 로그에는 지연·GPU메모리·시작 READY 원문·정상 종료 결과가 없으므로 이를 추가로 검증했다고 해석하지 않습니다. 호출 뒤에는 터미널 A에서 Ctrl+C로 종료합니다.
 
 ## 8. 복습
 
