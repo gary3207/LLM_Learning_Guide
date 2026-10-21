@@ -415,8 +415,38 @@ SAVED verify.json | quality not evaluated; existing models/registry unchanged
 
 최종 상태 비교와 기존 입력/캐시·중간 체크포인트/기준 경로 보존을 확인했다. verify에서 저장 RNG가 손상된 경우 보고서를 만들지 않고 실패했고, 각 모드의 기존 출력 덮어쓰기도 거부했다. 작은 실제 텐서 검사의 optimizer/scheduler/RNG 누락3종과 별도로, 이 통합 검사는 실제 NF4 모델을 서로 다른 Python 프로세스에서 재개한 결과다.
 
-검증 중 기존 TF32 설정 API와 PEFT 저장 시 config 조회 관련 UserWarning이 있었지만 실제 학습·재개·비교는 종료0으로 완료됐다. 경고가 해소됐거나 미래 버전 호환성이 검증됐다는 뜻은 아니다. **여기서 차이0은 이 로컬 실행의 결과**이며 모든 CUDA 환경·다른 버전에서의 비트 동일성 보장이 아니다. 사용자 VM의 CUDA 재개는 아직 실행 출력 대기다. 생성 정답률이나 품질 개선은 이번에 평가하지 않았다.
+검증 중 기존 TF32 설정 API와 PEFT 저장 시 config 조회 관련 UserWarning이 있었지만 실제 학습·재개·비교는 종료0으로 완료됐다. 경고가 해소됐거나 미래 버전 호환성이 검증됐다는 뜻은 아니다. **여기서 차이0은 이 로컬 실행의 결과**이며 모든 CUDA 환경·다른 버전에서의 비트 동일성 보장이 아니다. 다음의 별도 CUDA 예시와 입력·실행환경을 구분한다. 생성 정답률이나 품질 개선은 이번에 평가하지 않았다.
 
+
+### 별도 CUDA VM 실행 예시
+
+다음은 기존 학습 QLoRA 어댑터에서 출발한 CUDA VM의 제공된 콘솔 출력이다. 새 코드 생성 뒤 기준6회·저장 전3회·새 프로세스 재개4~6회와 최종 검증·보고서 저장·셸 복귀를 확인했다. 전체 `verify.json`이나 체크포인트를 직접 다시 읽은 결과는 아니다.
+
+```text
+DEVICE=cuda:0 NF4=210 TRAINABLE=230400
+CONTINUOUS STEP=1 BATCH=[7, 5] LR=0.00100000 LOSS=9.822600
+CONTINUOUS STEP=2 BATCH=[1, 0] LR=0.00100000 LOSS=10.183512
+CONTINUOUS STEP=3 BATCH=[3, 4] LR=0.00050000 LOSS=7.007626
+CONTINUOUS STEP=4 BATCH=[0, 3] LR=0.00050000 LOSS=6.891398
+CONTINUOUS STEP=5 BATCH=[6, 2] LR=0.00025000 LOSS=5.935735
+CONTINUOUS STEP=6 BATCH=[5, 0] LR=0.00025000 LOSS=5.478755
+PREFIX STEP=1 BATCH=[7, 5] LR=0.00100000 LOSS=9.822600
+PREFIX STEP=2 BATCH=[1, 0] LR=0.00100000 LOSS=10.183512
+PREFIX STEP=3 BATCH=[3, 4] LR=0.00050000 LOSS=7.007626
+PREPARED reference_updates=6 checkpoint_updates=3
+DEVICE=cuda:0 NF4=210 TRAINABLE=230400
+RESUMED STEP=4 BATCH=[0, 3] LR=0.00050000 LOSS=6.891398
+RESUMED STEP=5 BATCH=[6, 2] LR=0.00025000 LOSS=5.935735
+RESUMED STEP=6 BATCH=[5, 0] LR=0.00025000 LOSS=5.478755
+RESUMED_FROM=3 FINAL_STEP=6 | optimizer/scheduler/RNG restored
+VERIFY=PASS (batch order/LR/adapter/optimizer/scheduler/RNG)
+MAX_ADAPTER_ABS_DIFF=0 ATOL=1e-06 RTOL=1e-05
+SAVED verify.json | quality not evaluated; existing models/registry unchanged
+```
+
+분할 경로의 앞3회는 연속 경로의1~3회와, 재개한4~6회는 연속 경로의4~6회와 문항 인덱스·학습률·표시된 loss가 일치했다. 검증은 문항 순서·학습률 경로·최종 Torch RNG의 정확한 비교와 어댑터/optimizer/scheduler/loss의 명시한 허용오차 비교를 통과했다. 최종 어댑터의 실제 최대 절대 차이는0이었다. **이 CUDA 실행에서도 중간 저장·새 프로세스 학습 재개가 확인됐다.** 모든 환경에서의 비트 동일성이나 생성 정답률 개선을 뜻하지 않는다.
+
+bitsandbytes CUDA backend의 `_check_is_size` 관련 FutureWarning도 있었지만 이후 재개·검증·저장과 셸 복귀까지 이어졌다. 경고 해소나 미래 호환성을 검증한 것은 아니며, 이 결과를 기록하기 위해 패키지를 바꾸거나 학습을 다시 실행하지 않는다. 수치 종료 코드는 콘솔에 별도로 제시되지 않았다. 기존32장의 test0/4와 품질 승인 배포 미실행은 그대로다.
 
 VM에서는 `CONTINUOUS STEP=1..6`, `PREFIX STEP=1..3`, 다음 프로세스의 `RESUMED STEP=4..6`을 확인한다. 마지막 `VERIFY=PASS`와 `SAVED verify.json`이 이번 실습의 결과다. 로컬 참고 loss·최대 차이 수치를 맞추려고 사용자 모델을 초기화하거나 기존 체크포인트를 지우지 않는다.
 

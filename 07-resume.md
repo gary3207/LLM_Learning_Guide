@@ -167,6 +167,6 @@ network current status -> {'healthy': 1}
 
 [32장 QLoRA 품질 개선](32-quality-improvement.md)은 별도 CUDA VM에서 추가0/20/60회 비교·dev 선택·새 저장물 복원·최종 test까지 확인했습니다. 세 시점 모두train0/8·dev0/4이며 dev loss9.391413→7.103381→3.677019로60회를 선택했습니다. dev 생성/logits 복원 통과·test0/4→0/4·두 보고서 저장·셸 복귀로 비교 실습은 완료됐지만 정답률 개선은 없었습니다. FutureWarning은 출력됐으나 이번 실행의 완료와 구분하고 패키지를 바꾸지 않았습니다. 기존 모델/레지스트리/품질 게이트는 유지하며 다음은33장 학습 재개입니다.
 
-[33장 학습 재개](33-training-resume.md)는 새 AdamW/StepLR 실험의 연속6회와3회 저장·별도 프로세스3회 재개를 비교합니다. 실제 CPU NF4 zero-B 입력 fixture에서 최종 어댑터 최대 차이0, 문항/학습률 경로·optimizer/scheduler/Torch RNG 일치와 기존 입력/캐시 보존·손상/덮어쓰기 거부를 확인했습니다. 사용자 VM에서는 기존32장 코드4개와 원본 어댑터·데이터를 보존한 채 `resume_qlora.py prepare`→`resume`→`verify`를 CUDA로 실행합니다. 현재 VM 출력은 대기이며 생성 정답률은 재평가하지 않습니다. 다음은 작은 모델 구조 확장입니다.
+[33장 학습 재개](33-training-resume.md)는 로컬 CPU NF4 fixture 검증에 이어 별도 CUDA VM의 연속6회와3회 저장·별도 프로세스3회 재개를 확인했습니다. cuda:0/NF4210/trainable230400이며 문항/LR/표시loss가 같고 optimizer/scheduler/Torch RNG를 포함한 VERIFY=PASS·최종 어댑터 최대차이0·verify.json 저장·셸 복귀로 실습이 완료됐습니다. 재개4~6회 loss는6.891398/5.935735/5.478755였습니다. FutureWarning은 있었으나 재실행/패키지 변경 없이 결과를 기록하며 생성 정답률은 재평가하지 않았습니다. 기존 모델/32장결과/레지스트리/게이트는 유지하고 다음은 작은 모델 구조 확장입니다.
 
 [← 이전: 문맥 확장](06-context-window.md) · [목차](README.md) · [다음: Attention 입문 →](08-attention.md)
