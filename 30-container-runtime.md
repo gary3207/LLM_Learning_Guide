@@ -202,6 +202,114 @@ Docker의 실제 모델 실행까지 확인하면 LLMOps 입문의 **품질 → 
 
 RAG는 이 경로에서 제외한다. Kubernetes·새 서빙 프레임워크·별도 추적 플랫폼을 이번 완료 조건으로 추가하지 않는다.
 
+## 부록: 코드 읽기
+
+아래는 내려받은 정본의 내용이다. **실행은 위의 Bash 명령으로 한다.** Dockerfile이나 `.dockerignore` 내용을 셸 명령처럼 터미널에 붙이지 않는다.
+
+### Dockerfile
+
+```dockerfile
+FROM python:3.12-slim-bookworm@sha256:5d9e6adc9abd558bc0ce05f9ab16cef71328916fc9728f6b81e337af86a737e2
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_CACHE=/cache/hub \
+    HOME=/tmp USER=llm LOGNAME=llm PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /opt/llm
+COPY requirements.txt ./
+RUN python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.11.0+cu128' \
+    && python -m pip install -r requirements.txt \
+    && python -m pip check \
+    && python -m pip freeze > /opt/llm/image-packages.txt
+COPY app/smollm2_serve_selected.py ./
+COPY app/smollm2_api_metrics.py ./
+COPY app/smollm2_registry.py ./
+USER 65532:65532
+ENTRYPOINT ["python", "-B", "smollm2_serve_selected.py"]
+CMD ["--device", "cuda", "--metrics", "--port", "8003"]
+```
+
+`FROM`은 고정한 기반 이미지, `RUN`은 빌드 중 실행할 명령, `COPY`는 context에서 가져올 파일이다. `WORKDIR`은 이미지 안의 작업 위치다. `ENTRYPOINT`는 실행 프로그램이며 `CMD`는 기본 인자다. 실제 실행 때 인자를 추가하면 기본 인자가 교체되므로 필요한 옵션을 모두 전달한다.
+
+### requirements.txt
+
+```text
+torch==2.11.0+cu128
+transformers==4.57.1
+peft==0.17.1
+bitsandbytes==0.48.2
+accelerate==1.15.0
+huggingface_hub==0.36.2
+```
+
+### .dockerignore
+
+```text
+**
+!Dockerfile
+!requirements.txt
+!app/
+!app/smollm2_serve_selected.py
+!app/smollm2_api_metrics.py
+!app/smollm2_registry.py
+```
+
+`**`로 기본 제외하고 `!`로 필요한 항목만 허용한다. 빌드 결과인 `image-id.txt` 등 추가 파일은 포함하지 않는다.
+
+### 01-prepare-context.py
+
+```python
+"""Copy only runtime recipes and existing app code into a NEW Docker context."""
+import argparse
+import ast
+import hashlib
+from pathlib import Path
+
+
+def prepare(source, output):
+    source, output = Path(source), Path(output)
+    recipes = Path(__file__).resolve().parent
+    apps = {
+        "smollm2_serve_selected.py": "24-registered-serving/01-serve-selected.py",
+        "smollm2_api_metrics.py": "21-api-serving/01-serve-qlora.py",
+        "smollm2_registry.py": "23-model-registry/01-model-registry.py",
+    }
+    inputs = {name: recipes / name
+              for name in ("Dockerfile", "requirements.txt", ".dockerignore")}
+    for name, relative in apps.items():
+        flat = source / name
+        inputs[f"app/{name}"] = flat if flat.exists() or flat.is_symlink() else source / relative
+    files = {}
+    for name, path in inputs.items():
+        if any(part.is_symlink() for part in (path, *path.parents)):
+            raise ValueError("symbolic links are not supported: " + str(path))
+        files[name] = path.read_bytes()
+    for name, data in files.items():
+        if name.startswith("app/"):
+            ast.parse(data, filename=name)
+    output.mkdir()
+    (output / "app").mkdir()
+    for name, data in files.items():
+        (output / name).write_bytes(data)
+    print("CONTEXT", output.absolute())
+    print("FILES", len(files))
+    for name, data in files.items():
+        if name.startswith("app/"):
+            print(hashlib.sha256(data).hexdigest() + "  " + name)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    prepare(args.source, args.output)
+```
+
+먼저 필요한 바이트를 모두 읽고 Python 문법을 확인한 다음 새 폴더를 만든다. `mkdir()`에 덮어쓰기 옵션을 주지 않아 기존 출력은 거부한다. 이는 파일 보존 검사이지 실제 Docker 빌드나 GPU 실행 검사가 아니다.
+
 ## 참고
 
 - [Docker bind mount와 readonly](https://docs.docker.com/engine/storage/bind-mounts/)
