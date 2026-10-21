@@ -1,6 +1,6 @@
 # 27. 평가 파이프라인: 실행 → 검증 → 다음 단계 판정
 
-[← 이전: 실행 추적](26-run-tracking.md) · [목차](README.md)
+[← 이전: 실행 추적](26-run-tracking.md) · [목차](README.md) · [다음: 배포·롤백 →](28-deployment-rollback.md)
 
 ## 1. 목표와 범위
 
@@ -269,6 +269,6 @@ python source/check_guide.py
 - [ ] 종료0을 배포 완료로 해석하지 않는다.
 - [ ] 오류 때 후속 단계를 건너뛰고 기존 증거를 보존하는 이유를 설명한다.
 
-다음 묶음은 **배포·롤백**입니다. 이 장에서는 승인 판정까지만 연결하며 서버 전환과 이전 버전 복구를 수행하지 않습니다.
+다음 묶음은 [28장 배포·롤백](28-deployment-rollback.md)입니다. 이 장에서는 승인 판정까지만 연결하며 서버 전환과 이전 버전 복구를 수행하지 않습니다.
 
-[← 이전: 실행 추적](26-run-tracking.md) · [목차](README.md)
+[← 이전: 실행 추적](26-run-tracking.md) · [목차](README.md) · [다음: 배포·롤백 →](28-deployment-rollback.md)

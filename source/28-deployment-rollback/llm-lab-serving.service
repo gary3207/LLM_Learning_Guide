@@ -1,0 +1,8 @@
+[Unit]
+Description=LLM lab bounded serving (single local user)
+
+[Service]
+Type=exec
+ExecStart=:@COMMAND@
+Restart=no
+TimeoutStopSec=15

@@ -31,6 +31,7 @@
 !/25-quality-gate.md
 !/26-run-tracking.md
 !/27-evaluation-pipeline.md
+!/28-deployment-rollback.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -55,6 +56,7 @@
 !/source/25-quality-gate/
 !/source/26-run-tracking/
 !/source/27-evaluation-pipeline/
+!/source/28-deployment-rollback/
 !/source/check_guide.py
 __pycache__/
 *.pyc

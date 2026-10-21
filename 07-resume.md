@@ -134,6 +134,9 @@ network current status -> {'healthy': 1}
 
 [27장 평가 파이프라인](27-evaluation-pipeline.md)은 새 평가1회와 결과 검증·다음 단계 판정을 연결합니다. 품질 미달이면 Evaluate=blocked·Verify=passed·Decision=halted_quality/종료2입니다. 평가 오류와 검증 오류는 후속 단계를 건너뛰고 종료1, 승인은 다음 단계 허용 판정/종료0입니다. 어떤 경우도 실제 배포를 수행하지 않습니다. 별도 CUDA VM에서는 `qlora-v1`·0/8·Evaluate=blocked/Verify=passed/Decision=halted_quality·종료2·followup=skipped/deployed=false·새 실행 ID와 결과 지문을 확인했습니다. 로컬 미학습 CPU 검사와 구분하며, 실제 승인 배포·롤백은 수행하지 않았습니다. 다음 묶음은 배포·롤백입니다.
 
+[28장 배포·롤백](28-deployment-rollback.md)은 지정한27장 실행이 승인된 경우에만 전용systemd 사용자 unit을 재시작하고health/generate의 전체 식별 정보를 확인합니다. 실패하면 이전에 검증한 배포를 재시작하며, 복구 성공도 후보 실패 종료1을 바꾸지 않습니다. 품질 미달은 서비스 제어·새 상태 쓰기 전 종료2, 최초 실패는 복구 대상 없음입니다. 선택 포인터는 유지합니다. 로컬 네이티브 unit/합성transport와 실제CPU NF4/테스트 adapter 검사·VM 학습 모델 승인 배포 미확인을 구분합니다.
+
+- [ ] 품질 차단·후보 실패·이전 버전 복구·최초 배포 실패를 구분한다.
 - [ ] 평가 오류·품질 미달·기록 검증 성공·다음 단계 허용·실제 배포를 구분한다.
 - [ ] 실행 ID와 모델 버전, 당시 코드 지문과 보관 보고서 지문을 구분한다.
 - [ ] 평가 실패가 정상적인 배포 차단 결과일 수 있음을 설명한다.
