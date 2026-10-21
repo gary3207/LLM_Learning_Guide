@@ -434,8 +434,46 @@ python smollm2_track_run.py list --runs ../llmops_runs_v1
 |---|---|
 | 로컬 합성 경계의 기록·오류·손상·경로 검사 | 한 번의 평가 호출·입력 지문/시각/보고서 연결·경로 충돌/덮어쓰기 거부·오류 기록·손상/불완전 표시·조회 시 현재 소스와 독립 통과. 가로챈 평가 경계이며 실제 품질과 구분 |
 | 로컬 실제 CPU NF4·미학습 zero-B 새 평가/실행 기록 | 실제8문항·BLOCKED 0/8·실행 종료2·새 quality/run 보고서 읽기·6소스/데이터/모델/환경 연결·조회 종료0·보고서 변경 시 invalid/조회1 통과. 원본/어댑터/등록/기존 보고서/소스 보존 확인. 학습 후보 CUDA 품질과 구분 |
-| 별도 VM의 추적 적용 새 평가·목록 조회 | 아직 미확인 |
+| 별도 CUDA VM의 추적 적용 새 평가·목록 조회 | `qlora-v1`·8문항0/8·blocked·실행 종료2·조회 종료0·새 run_id와 결과 지문/크기 조회·셸 복귀 확인. 아래 실행 예시 참조 |
 | 기존25장 CUDA 결과 | 이미 확인한0/8·종료2이며26장 실행 완료 증거는 아님 |
+
+### 별도 CUDA VM 실행 예시
+
+기존 선택 `qlora-v1`을 추적 코드로 새로 평가한 출력입니다. 과거25장 보고서를 가져온 것이 아니라 새 실행 ID를 생성했습니다. 여덟 문항의 생성문은25장 CUDA 예시와 같았고, 집계도 train0/2·probe0/2·diagnostic0/4였습니다.
+
+```text
+CREATED smollm2_track_run.py 16048 bytes
+BLOCKED 0/8
+EXIT_CODE=2
+LIST_EXIT_CODE=0
+```
+
+목록의 주요 필드는 다음과 같습니다. 실행 ID·절대 경로는 실행마다 달라집니다.
+
+```json
+{
+  "status": "blocked",
+  "duration_seconds": 8.624034098000266,
+  "approved": false,
+  "summary": {
+    "correct": 0,
+    "total": 8,
+    "groups": {
+      "train": {"correct": 0, "total": 2},
+      "probe": {"correct": 0, "total": 2},
+      "diagnostic": {"correct": 0, "total": 4}
+    }
+  },
+  "quality_file": {
+    "sha256": "136c94b319936f725e03e7ba786cf680ea6d427b424f7890d4040db7141a0d5f",
+    "bytes": 3293
+  }
+}
+```
+
+선택 식별 정보는 기존 `qlora-v1`·manifest `bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0`·고정 원본/revision과 일치했습니다. 약8.624초는 추적기에 기록된 이 평가 실행의 기간이며, 요청 지연 벤치마크나 다른 환경의 속도 보장은 아닙니다.
+
+CUDA `bitsandbytes`의 `_check_is_size` FutureWarning이 있었지만 평가·기록·목록 조회는 완료됐습니다. 경고가 해결됐다는 뜻은 아닙니다. 실행 로그와 목록 JSON으로 확인한 예시이며, 별도 원격 파일 직접 읽기나 모델 품질 향상·서버 종료 검증과는 구분합니다.
 
 개발자 실행 위치는 저장소 루트입니다. ML 의존성이 있는 검사는 기존 분리된 CPU 환경을 사용하며 VM의 CUDA 패키지를 바꾸지 않습니다.
 
