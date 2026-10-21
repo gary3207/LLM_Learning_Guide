@@ -1,6 +1,6 @@
 # 32 · QLoRA 학습량 비교와 모델 품질 개선
 
-[← 이전: 독립 평가 데이터](31-evaluation-data.md) · [목차](README.md) · [학습 점검](07-resume.md)
+[← 이전: 독립 평가 데이터](31-evaluation-data.md) · [목차](README.md) · [다음: 학습 재개 →](33-training-resume.md)
 
 ## 1. 목표와 비교할 조건
 
@@ -457,4 +457,4 @@ SAVED final_test.json | no retraining during check; no registration/deployment
 - [ ] loss 감소와 생성 정답 수 증가를 따로 해석한다.
 - [ ] 어댑터 복원과 optimizer/scheduler/RNG 복원이 다름을 설명한다.
 
-다음 묶음은 **학습 재현·재개**다. 이번 결과를 본 뒤 현재 비교의 한계를 정리하고 optimizer·scheduler·난수 상태를 포함하는 학습 이어하기로 확장한다. RAG·새 서빙 플랫폼·자동 배포를 추가하지 않는다.
+다음 묶음은 **[학습 재현·재개](33-training-resume.md)**다. 이번 결과를 본 뒤 현재 비교의 한계를 정리하고 optimizer·scheduler·난수 상태를 포함하는 학습 이어하기로 확장한다. RAG·새 서빙 플랫폼·자동 배포를 추가하지 않는다.

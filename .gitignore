@@ -36,6 +36,7 @@
 !/30-container-runtime.md
 !/31-evaluation-data.md
 !/32-quality-improvement.md
+!/33-training-resume.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -65,6 +66,7 @@
 !/source/30-container-runtime/
 !/source/31-evaluation-data/
 !/source/32-quality-improvement/
+!/source/33-training-resume/
 !/source/check_guide.py
 __pycache__/
 *.pyc
