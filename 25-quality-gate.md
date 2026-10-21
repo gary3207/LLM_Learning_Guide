@@ -265,8 +265,8 @@ PY
 |---|---|
 | 로컬 문자열 판정·시작 분기 검사 | 고정 문항·문자열 채점·누락/중복/변경 거부·출력 충돌·판정 후 입력 변경 거부 통과. 합성 응답과 가로챈 서버 경계로 분기를 검사한 것이며 실제 승인 모델의 HTTP 검사는 아님 |
 | 로컬 실제 CPU NF4·미학습 zero-B fixture | 실제 여덟 생성·BLOCKED 0/8·CLI 종료2·READY/바인딩 없음·새 보고서 재계산/덮어쓰기 거부·원본/후보/레지스트리/성능 보고서/소스 불변 통과. 학습 후보의 CUDA 품질과 구분 |
-| 별도 VM 기존 QLoRA의 평가·판정·새 보고서 | 아직 미확인 |
-| 별도 VM의 합격 후 서버 시작·종료 | 실제 합격 경로를 실행했을 때만 확인. 미달 시 시작하지 않는 것이 목표 |
+| 별도 CUDA VM 기존 QLoRA의 평가·판정·새 보고서 | `qlora-v1`·8문항0정답·`BLOCKED 0/8`·종료2·보고서 요약 `approved: false`·셸 복귀 확인. 로컬 미학습 fixture와 구분 |
+| 별도 VM의 합격 후 서버 시작·종료 | 이번 모델은 기준 미달이므로 실행하지 않음. 해당 실행 경로는 포트를 열지 않으며, 기존의 다른 서버 종료 여부를 증명하는 것은 아님 |
 
 개발자 재검사는 저장소 루트에서 실행합니다. 첫 검사는 표준 라이브러리 기반 판정/분기 검사, 두 번째는 실제 ML 의존성을 갖춘 CPU 통합 검사입니다. 합성 PASS 테스트와 실제 모델 추론의 PASS를 혼동하지 않습니다.
 
@@ -279,6 +279,35 @@ python source/check_guide.py
 실제 모델 검사는 기존 Python3.12·PyTorch2.9.0+cpu·Transformers4.57.1·PEFT0.17.1·bitsandbytes0.48.2의 분리된 로컬 환경을 사용합니다. VM의 CUDA 환경을 CPU 패키지로 교체하지 않습니다. 체크포인트 학습·optimizer 갱신 없이 zero-B 어댑터로 로딩·생성·차단 경로를 검사하며, 그 점수를 학습 후보의 CUDA 품질 결과로 쓰지 않습니다.
 
 ## 8. 복습과 다음 묶음
+
+### 별도 CUDA VM 실행 예시
+
+다음은 기존 등록 QLoRA의 실제 생성·판정 출력입니다. CPU 미학습 fixture와 문항별 문자열이 일부 다르므로 별도 근거로 구분합니다.
+
+```text
+[train/1] other | answer=failed | text='Device GPU status:\n\nDevice GPU'
+[train/2] other | answer=healthy | text='Device network status:\n\nDevice network'
+[probe/3] other | answer=failed | text='The gpu status is "not available'
+[probe/4] other | answer=healthy | text='The network status is currently "Not Available'
+[diagnostic/5] other | answer=failed | text='GPU status: Available.'
+[diagnostic/6] other | answer=healthy | text='Network status: Reply with one word'
+[diagnostic/7] other | answer=failed | text='The GPU status is currently "0".'
+[diagnostic/8] other | answer=healthy | text='Network status: Status: Unsolic'
+BLOCKED 0/8
+EXIT_CODE=2
+```
+
+| 보고서 조회 항목 | 실제 결과 |
+|---|---|
+| 선택 버전 | `qlora-v1` |
+| manifest 지문 | `bbeeeacbef0f07944c52a1596d5342feecbb09246d8d25868f1c7ee8fc65cad0` |
+| train / probe / diagnostic | 0/2 · 0/2 · 0/4 |
+| 전체 / 승인 여부 | 0/8 · `approved: false` |
+| 실행 종료 | 종료2와 셸 프롬프트 복귀 |
+
+**모델 품질은 기준 미달이지만 게이트 실습은 목표대로 동작했습니다.** 보고서를 저장·조회하고 새 서버 시작을 차단했습니다. CUDA bitsandbytes의 `FutureWarning`이 있었지만 평가·보고서 조회·정상적인 차단 종료까지 진행됐습니다. 경고가 사라졌거나 라이브러리가 수정됐다는 뜻은 아닙니다. 기존 서버의 상태를 따로 조회한 결과도 아닙니다.
+
+### 점검
 
 - [ ] 파일 무결성·서버 생존·응답 품질이 서로 다른 검사임을 설명한다.
 - [ ] 완전 일치 채점과 그룹별 승인 조건을 구분한다.
