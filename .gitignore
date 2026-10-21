@@ -28,6 +28,7 @@
 !/22-serving-benchmark.md
 !/23-model-registry.md
 !/24-registered-serving.md
+!/25-quality-gate.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -49,6 +50,7 @@
 !/source/21-api-serving/
 !/source/23-model-registry/
 !/source/24-registered-serving/
+!/source/25-quality-gate/
 !/source/check_guide.py
 __pycache__/
 *.pyc

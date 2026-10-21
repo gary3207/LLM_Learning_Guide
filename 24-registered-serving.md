@@ -1,6 +1,6 @@
 # 24 · 선택한 등록 버전으로 API를 시작하고 응답에서 확인하기
 
-[← 이전: 버전 등록·선택](23-model-registry.md) · [목차](README.md)
+[← 이전: 버전 등록·선택](23-model-registry.md) · [목차](README.md) · [다음: 품질 게이트 →](25-quality-gate.md)
 
 ## 1. 이번에 완성할 결과물
 
@@ -304,4 +304,4 @@ generate: {
 - [ ] health의 시작 스냅샷 정보와 실시간 파일 검증을 구분한다.
 - [ ] 시작 중 파일을 변경하지 않고 동시 변경 보호·인증·품질 보증으로 확대하지 않는다.
 
-[← 이전: 버전 등록·선택](23-model-registry.md) · [목차](README.md)
+[← 이전: 버전 등록·선택](23-model-registry.md) · [목차](README.md) · [다음: 품질 게이트 →](25-quality-gate.md)
