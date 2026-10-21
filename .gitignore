@@ -37,6 +37,7 @@
 !/31-evaluation-data.md
 !/32-quality-improvement.md
 !/33-training-resume.md
+!/34-structure-comparison.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/templates/
@@ -67,6 +68,7 @@
 !/source/31-evaluation-data/
 !/source/32-quality-improvement/
 !/source/33-training-resume/
+!/source/34-structure-comparison/
 !/source/check_guide.py
 __pycache__/
 *.pyc

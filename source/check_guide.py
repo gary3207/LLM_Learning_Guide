@@ -30,7 +30,7 @@ def check(root):
     scripts = [root / "source/check_guide.py"] + sorted(
         path for directory in ("01-foundations", "02-first-classifier", "03-inference-and-data",
                                "04-evaluation", "05-next-token", "06-context-window", "08-attention",
-                               "09-transformer", "16-pretrained", "17-sft", "18-lora", "19-model-evaluation", "20-qlora", "21-api-serving", "23-model-registry", "24-registered-serving", "25-quality-gate", "26-run-tracking", "27-evaluation-pipeline", "28-deployment-rollback", "29-operations-load", "30-container-runtime", "31-evaluation-data", "32-quality-improvement", "33-training-resume")
+                               "09-transformer", "16-pretrained", "17-sft", "18-lora", "19-model-evaluation", "20-qlora", "21-api-serving", "23-model-registry", "24-registered-serving", "25-quality-gate", "26-run-tracking", "27-evaluation-pipeline", "28-deployment-rollback", "29-operations-load", "30-container-runtime", "31-evaluation-data", "32-quality-improvement", "33-training-resume", "34-structure-comparison")
         for path in (root / "source" / directory).glob("*.py")
     )
     block_count = 0

@@ -42,6 +42,7 @@
 | 31 | [독립 평가 데이터 설계](31-evaluation-data.md) | 문장 틀별 train/dev/test·기존 진단 분리·중복/라벨 검사·새 JSON, 모델 실행 없음 |
 | 32 | [QLoRA 학습량과 품질 개선](32-quality-improvement.md) | 추가0/20/60회·dev만으로 선택·새 어댑터 저장·별도 프로세스 복원·선택 후 test 비교 |
 | 33 | [학습 상태 저장·재개](33-training-resume.md) | AdamW·StepLR·Torch RNG·갱신 위치 저장, 연속6회와 별도 프로세스3+3회 비교 |
+| 34 | [작은 Transformer 구조 비교](34-structure-comparison.md) | head·층·보이는 문맥을 하나씩 변경, 같은 초기 공통 가중치·학습/진단·저장·새 프로세스 복원 |
 
 각 장은 **목표 → 개념 → 실행 위치·방법 → 코드 → 해설 → 실행 예시·해석 → 복습** 순서로 구성합니다.
 

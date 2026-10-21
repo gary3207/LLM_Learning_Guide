@@ -169,4 +169,6 @@ network current status -> {'healthy': 1}
 
 [33장 학습 재개](33-training-resume.md)는 로컬 CPU NF4 fixture 검증에 이어 별도 CUDA VM의 연속6회와3회 저장·별도 프로세스3회 재개를 확인했습니다. cuda:0/NF4210/trainable230400이며 문항/LR/표시loss가 같고 optimizer/scheduler/Torch RNG를 포함한 VERIFY=PASS·최종 어댑터 최대차이0·verify.json 저장·셸 복귀로 실습이 완료됐습니다. 재개4~6회 loss는6.891398/5.935735/5.478755였습니다. FutureWarning은 있었으나 재실행/패키지 변경 없이 결과를 기록하며 생성 정답률은 재평가하지 않았습니다. 기존 모델/32장결과/레지스트리/게이트는 유지하고 다음은 작은 모델 구조 확장입니다.
 
+[34장 작은 Transformer 구조 비교](34-structure-comparison.md)는 기준 모델에서 head·블록 수·보이는 토큰 수를 하나씩 바꿉니다. 기존11장 초기 logits 동등성·미래 차단·기울기·실제 로컬 CPU 학습/진단·별도 저장·새 프로세스 복원을 검증했습니다. 기준/head2/층2는 train/probe4/4, 문맥2는 각각2/4이며 입력에서 장치 이름이 사라지는 충돌 상한과 같습니다. 독립 test나 생성·GPU 성능·기존 QLoRA 개선으로 해석하지 않습니다. VM에서는 기존 환경에서 CPU로 실행하고 새 tiny_structure_v1만 생성하며, VM 출력은 아직 확인 전입니다.
+
 [← 이전: 문맥 확장](06-context-window.md) · [목차](README.md) · [다음: Attention 입문 →](08-attention.md)
