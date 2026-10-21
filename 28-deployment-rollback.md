@@ -454,6 +454,19 @@ printf 'DEPLOY_EXIT_CODE=%s\n' "$result"
 
 일반CLI는 종료 코드로 결과를 전달합니다. 승인 경로의 세부 진단은 새`*-result.json`의error/recovery/recovery_error·HTTP 응답과 해당 unit의로그를 확인합니다. 전환 전 오류는stderr에 출력합니다. 파일 쓰기 실패나 강제 종료라면 일부 기록만 있을 수 있습니다.
 
+### 별도 CUDA VM의 배포 거부 실행 예
+
+27장에서 품질 미달로 판정한 기존 실행을 지정한 실제 출력입니다. 새 평가나 모델 로딩 없이 보관 근거를 검사하고 배포를 거부했습니다.
+
+```text
+CREATED smollm2_deploy.py 17054 bytes
+CREATED llm-lab-serving.service 134 bytes
+DEPLOY_EXIT_CODE=2
+DEPLOY_STATE_EXISTS=False
+```
+
+`DEPLOY_STATE_EXISTS`는 실행 뒤 `Path('../serving_deployment_v1').exists()`를 출력한 값입니다. 종료2는 품질 미달에 따른 정상 거부이고, False는 새 배포 상태 폴더가 없음을 뜻합니다. 다운로드된 `.service`는 템플릿이며 등록된 unit이 아닙니다. 승인 배포·롤백·새 CUDA 추론의 실행 증거가 아니며 기존 수동 서버의 종료도 뜻하지 않습니다. 이 차단 경로를 완료한 뒤에는 품질 기준 완화나 재학습 없이 다음 운영 관찰 묶음으로 넘어갈 수 있습니다.
+
 승인 전환 뒤 확인 명령입니다. 품질 미달로 상태가 생성되지 않았다면 아래active.json 읽기를 할 필요가 없습니다.
 
 ```bash
@@ -483,7 +496,8 @@ printf 'ROLLBACK_EXIT_CODE=%s\n' "$result"
 | 로컬 표준 라이브러리·합성 승인 | 품질 차단 무변경·파일/모델/소스 변조 거부·소유권/경로·상태/HTTP 식별 정보·동일 버전의 다른 리스너 거부·오류/복구·평평한 VM 승인 경로·테스트 임시 폴더 이식성 검사 |
 | 실제 Ubuntu systemd 사용자 unit | 고유 테스트 unit의A→B·명시적A롤백·실패B의A복구·최초 실패/복구 대상 없음·active이나 아직bind하지 않은 서비스 대신 다른 동일 버전 리스너를 성공으로 받아들이지 않음·정리 후inactive/not-found. HTTP 앱과승인은 **합성 transport fixture**이며 모델 추론이 아님 |
 | 실제 CPU NF4 HTTP | 실제 운영용 로더/Handler·210개 양자화 모듈·한 토큰 생성·A→B→A롤백·실패B에서A복구. **승인은 합성**, 수명관리는 테스트용 subprocess adapter이며 native systemd와 결합한 ML 실행이 아님 |
-| 별도 VM의 학습 모델 배포·롤백 | 아직 미확인. 현재27장 실제 CUDA 모델은0/8로 차단 상태 |
+| 별도 CUDA VM의 품질 차단 | 기존27장0/8 실행의 배포 종료2·DEPLOY_STATE_EXISTS=False·셸 복귀 확인. 새 모델 로딩·CUDA 추론·서비스 등록 없음 |
+| 별도 VM의 학습 모델 승인 배포·롤백 | 아직 미실행. 품질 차단 확인과 구분 |
 
 두 통합 검사의 coverage를 합쳐 **학습 모델의 실제 승인 배포**로 해석하지 않습니다. 일반 실행에품질 우회 옵션이나 합성 서버는 없습니다. 기준 변경·재학습·가짜 승인 파일 생성도 하지 않습니다.
 
