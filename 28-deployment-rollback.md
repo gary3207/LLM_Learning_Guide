@@ -59,6 +59,14 @@ serving_deployment_v1/
 
 품질 미달이면 이 상태 폴더를 새로 만들지 않습니다. 승인 경로에서는`systemctl --user link`, `daemon-reload`, `restart`/`stop`을 사용합니다. **sudo·기존 unit 변경·enable·linger 설정은 하지 않습니다.** 사용자 서비스 관리자가 동작하는 로그인 세션을 전제로 하며, 로그아웃/재부팅 뒤 지속 서빙은 이번 범위가 아닙니다.
 
+### 원본 모델 캐시도 서비스에서 보여야 합니다
+
+이 장의 실행 예시는 같은 사용자의 기본 Hugging Face 캐시를 사용합니다. 서비스도 저장 어댑터와 같은 원본 revision의 가중치를 캐시에서 읽을 수 있어야 합니다. 로더는 `local_files_only=True`이므로 캐시가 다르거나 비어 있다고 인터넷에서 자동으로 받지 않습니다.
+
+16장처럼 셸에만 `HF_HOME`이나 `HF_HUB_CACHE`를 지정했다면 그 설정이 `systemctl --user`로 시작한 서비스에 자동 전달되지는 않습니다. 기본 캐시에 영향을 주는 `XDG_CACHE_HOME`도 마찬가지입니다. 서비스는 **사용자 서비스 관리자와 unit에 설정된 환경**을 사용하며, 같은 `.venv` Python을 실행하는 것만으로 캐시 경로가 같아지지는 않습니다.
+
+현재 실행기는 사용자 지정 캐시 환경을 unit에 복사하지 않습니다. 사용자 지정 캐시를 사용하는 환경은 서비스에도 같은 경로가 설정되어 있어야 하며, 이 안내가 그 설정을 자동 변경하지는 않습니다. 기본 캐시를 사용한 이 예시와 구분하세요. 셸에서는 되는데 서비스에서 원본을 찾지 못한다면 먼저 두 실행 환경의 캐시 경로를 비교합니다. 이를 모델 품질 실패나 드라이버 문제로 단정하거나 모델을 다시 학습하지 않습니다. 전체 셸 환경이나 인증 토큰을 unit에 복사하지 않습니다.
+
 ## 5. 전체 코드·unit 생성과 실행
 
 정본: [01-deploy-rollback.py](source/28-deployment-rollback/01-deploy-rollback.py), [llm-lab-serving.service](source/28-deployment-rollback/llm-lab-serving.service). 새 파일은 exclusive 모드로 생성합니다. 두 이름 중 하나라도 이미 있으면 멈추고 기존 파일을 보존합니다.

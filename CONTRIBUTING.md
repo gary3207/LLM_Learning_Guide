@@ -25,8 +25,9 @@
 ## 새 장 추가
 
 - [장 작성 양식](templates/lesson.md)을 복사해 다음 번호의 Markdown을 루트에 만듭니다.
+- 루트에 복사한 장의 목차 링크는 `../README.md`에서 `README.md`로 바꿉니다. 양식 원본은 `templates/` 안에 있으므로 원본의 상대 링크는 그대로 둡니다.
 - 실습 코드와 필요한 검사는 `source/` 아래에 둡니다.
-- `README.md` 목차와 이전/다음 링크를 갱신합니다.
+- `README.md` 목차, `00-roadmap.md`의 순서·구현 범위와 이전/다음 링크를 갱신합니다.
 - `07-resume.md`의 학습 점검·확장 범위와 `CHANGELOG.md`를 갱신합니다.
 - 아직 구현하지 않은 주제는 확장 과제로 표시합니다.
 
@@ -41,6 +42,8 @@
 
 Python 문법 검사에도 새 실습을 포함하려면 `source/check_guide.py`의 장별 디렉터리 목록에 `08-example`을 추가합니다. 새 장과 함께 `.gitignore` 및 검사 코드의 변경을 커밋합니다. 파일이 무시되는지 확인할 때는 `git check-ignore 08-example.md source/08-example/example.py`를 사용합니다. 허용된 경로라면 무시 규칙이 출력되지 않습니다.
 
+본문에 전체 실행 코드를 복사한다면 검사기의 `CANONICAL_SCRIPTS`에 문서·본문 식별자·정본 경로를 연결합니다. 이 목록에 연결한 사본만 AST로 정본과 대조하며, 단순히 소스 링크가 있다고 모든 짧은 예제나 도움 함수를 전문 대조하지는 않습니다. 연결한 본문이 빠지거나 둘 이상이면 검사 실패입니다.
+
 
 ## 게시 전 검사
 
@@ -48,10 +51,13 @@ Python 문법 검사에도 새 실습을 포함하려면 `source/check_guide.py`
 
 ```bash
 python source/check_guide.py
+python -B source/test_check_guide.py
 python source/03-inference-and-data/verify_examples.py
 ```
 
-첫 검사는 문서 링크·Python 문법·일부 민감 패턴을 확인합니다. 두 번째는 모델을 실행하지 않고 코드 전문 일치·데이터 분리·파일 보호를 검사합니다. 자동 검사만으로 모든 민감 내용이나 기술 오류를 찾을 수는 없으므로 본문도 검토합니다.
+첫 검사는 문서 링크·Python 펜스·Bash 안의 Python heredoc·생성용 상수 Python 문자열의 문법, 명시적으로 연결한 코드 사본의 정본 일치와 일부 민감 패턴을 확인합니다. 두 번째는 검사기 자체의 회귀 검사이며, 세 번째는03·04장 아홉 예제의 코드 전문 일치·데이터 분리·파일 보호 검사입니다. 세 검사 모두 모델을 실행하지 않습니다.
+
+검사기는 본문 명령을 실행하지 않고 AST로 읽습니다. 현재 가이드의 Python stdin·`.py` 파일 작성·Docker Python 진입점·중첩 Bash heredoc 형태를 지원하며, 동적 문자열 생성·다운로드한 코드·임의의 Bash 문법/확장이나 `<<-` 전체를 해석하지는 않습니다. 새 명령 형태를 추가하면 지원 여부와 실패 사례를 확인합니다. 자동 검사만으로 모든 민감 내용이나 기술 오류를 찾을 수는 없으므로 본문도 검토합니다.
 
 ## GitHub에 반영
 
@@ -59,7 +65,7 @@ python source/03-inference-and-data/verify_examples.py
 
 ```bash
 git status --short
-git add .gitignore source/check_guide.py README.md CHANGELOG.md 07-resume.md 08-example.md source/08-example/
+git add .gitignore source/check_guide.py README.md 00-roadmap.md CHANGELOG.md 07-resume.md 08-example.md source/08-example/
 git diff --cached
 git diff --cached --check
 git commit -m "docs: add learning chapter"

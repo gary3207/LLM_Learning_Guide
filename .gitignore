@@ -70,6 +70,7 @@
 !/source/33-training-resume/
 !/source/34-structure-comparison/
 !/source/check_guide.py
+!/source/test_check_guide.py
 __pycache__/
 *.pyc
 *.pt

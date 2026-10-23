@@ -664,7 +664,6 @@ disk full -> 스토리지
 ├── classifier.pt
 └── source/
     ├── .venv/
-    ├── linux-practice.txt
     └── train_classifier.py
 ```
 

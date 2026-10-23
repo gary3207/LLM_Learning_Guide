@@ -44,7 +44,7 @@ LLMOps 여섯 묶음 중 **5/6 운영 관찰·부하 검사**입니다. 기존 �
 
 ## 3. 실행 위치와 재사용 파일
 
-모든 명령은 **같은 Ubuntu GPU VM의 `~/llm-lab/source`와 기존 `.venv`**에서 실행합니다. 두 터미널을 사용합니다.
+부하 실습 명령은 **같은 Ubuntu GPU VM의 `~/llm-lab/source`와 기존 `.venv`**에서 실행합니다. 두 터미널을 사용합니다.7절의 개발용 검사 명령은 별도로 저장소 루트에서 실행합니다.
 
 | 파일 | 역할 |
 |---|---|
@@ -381,6 +381,8 @@ printf 'LOAD_EXIT_CODE=%s\n' "$result"
 | 별도 CUDA VM | 순차/동시 각6건 성공·0실패·보고서 저장·클라이언트 종료0 확인. CUDA allocator 관찰값을 실제 출력으로 보존. 서버READY/정상 종료 로그는 별도 미확인 |
 
 테스트 정본: [test_load.py](source/29-operations-load/test_load.py). 표준 라이브러리 검사 명령입니다. 합성 응답을 검증하는 테스트이며 모델 추론 결과가 아닙니다.
+
+아래 명령은 **가이드 저장소를 받은 개발 환경의 저장소 루트**에서 실행합니다. 위 VM의 단일 파일 배치에서는 이 테스트 트리를 만들지 않으므로 실행 대상이 아닙니다.
 
 ```bash
 python source/29-operations-load/test_load.py
