@@ -301,3 +301,5 @@ RESTORE=PASS (4 models, train/probe logits, fresh process) | SAVED verify.json
 - 이 실습의 저장은 추론용 가중치와 참조 출력이다.33장처럼 optimizer/scheduler/RNG를 담은 학습 상태 재개가 아니다.
 
 기존 QLoRA의 정답률·품질 게이트·배포 상태는 이번 작은 모델의 결과와 별개로 유지한다. RAG·새 운영 프레임워크·추가 모델 튜닝은 포함하지 않는다.
+
+[← 이전: 학습 재개](33-training-resume.md) · [목차](README.md)

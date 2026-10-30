@@ -352,4 +352,4 @@ HTTP 요청·응답 경로는 성공했지만 한 단어 정답 `failed`·`healt
 - [Transformers4.57.1 생성·GenerationConfig](https://huggingface.co/docs/transformers/v4.57.1/en/main_classes/text_generation)
 - [PEFT 모델 복원](https://huggingface.co/docs/peft/v0.17.0/en/package_reference/peft_model)
 
-[← 이전: QLoRA](20-qlora.md) · [목차](README.md)
+[← 이전: QLoRA](20-qlora.md) · [목차](README.md) · [다음: 서빙 성능 측정 →](22-serving-benchmark.md)

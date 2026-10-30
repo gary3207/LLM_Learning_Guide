@@ -203,7 +203,9 @@ PEFT 모델의 `save_pretrained()`는 원본 전체가 아니라 `adapter_model.
 
 저장 전후 네 질문의 실제 생성 문자열과 마지막 위치 전체 어휘 logits를 비교합니다. CPU로 옮겨 저장한 logits에 수치 허용오차를 적용하며, 생성 문자열은 일치해야 합니다. GPU/CPU를 바꿔도 어떤 입력이든 동일한 문자열이 나온다는 보장은 아닙니다. 기본 실습은 같은 장치에서 train/check합니다. optimizer/RNG 상태는 저장하지 않으므로 정확한 학습 재개용 체크포인트는 아닙니다.
 
-## 5. 실제 CPU 검증 출력 — CUDA 실행 예시가 아님
+## 5. 실제 실행 예시와 품질 해석
+
+### 실제 CPU 검증 출력 — CUDA 실행 예시가 아님
 
 Python3.12·PyTorch2.9.0+cpu·Transformers4.57.1·PEFT0.17.1의 격리된 Windows 로컬 환경에서 `train --device cpu`, 별도 프로세스 `check --device cpu`를 실행했습니다. 같은 원본 캐시를 사용했고, 아래는 실제 stdout입니다. **A10 실행·GPU 메모리·속도를 검증한 출력이 아닙니다.** 장치·패키지·계산 조건에 따라 값·문장이 달라질 수 있습니다.
 

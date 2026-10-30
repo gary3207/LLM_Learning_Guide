@@ -393,4 +393,4 @@ SAVED ../serving_benchmark_v1.json
 - [PyTorch2.9 memory_allocated](https://docs.pytorch.org/docs/2.9/generated/torch.cuda.memory.memory_allocated.html)
 - [PyTorch2.9 CUDA memory management](https://docs.pytorch.org/docs/2.9/notes/cuda.html#cuda-memory-management)
 
-[← 이전: HTTP API](21-api-serving.md) · [목차](README.md)
+[← 이전: HTTP API](21-api-serving.md) · [목차](README.md) · [다음: 버전 등록·선택 →](23-model-registry.md)

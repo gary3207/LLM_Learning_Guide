@@ -15,6 +15,8 @@
 
 ### 실습 흐름과 파일
 
+**절 바로가기:** [복원](#1-저장한-모델을-불러오면-무엇이-복원되는가) · [새 입력 시험](#2-새로운-조합-모르는-단어-단어-순서-시험) · [기여도 분석](#3-오답의-이유를-추측에서-실제-수치로-확인하기) · [데이터 보완](#4-데이터-보완--구조를-바꾸지-않고-한-예제만-추가) · [두 모델 비교](#5-같은-문장을-두-모델에-넣어-비교하기) · [한계](#6-한계와-다음-장으로-넘길-기준)
+
 ```text
 classifier.pt → 새 조합·미등록 단어·순서 시험 → 단어별 기여도 분석
              → 예제 한 개 추가·별도 학습 → classifier_augmented.pt
@@ -448,7 +450,12 @@ print("원본 코드와 classifier.pt는 변경하지 않았습니다.")
 파일: [`train_classifier_augmented.py`](source/03-inference-and-data/train_classifier_augmented.py). 앞의 변환 코드가 만드는 전체 학습 코드입니다.
 
 > [!WARNING]
-> **아래 코드는 CUDA GPU로 새 모델을 학습하고 파일을 생성합니다.** `/home/ubuntu/llm-lab/source/train_classifier_augmented.py`에 배치한 뒤 `python train_classifier_augmented.py`로 실행합니다. 저장 경로는 `__file__`의 상위 두 단계에 있는 `classifier_augmented.pt`입니다. **저장소의 중첩된 `source/03-inference-and-data/`에서 직접 실행하면 저장 경로가 달라집니다.** 예시 배치에서는 `/home/ubuntu/llm-lab/classifier_augmented.pt`가 생성됩니다. 같은 모델이 있으면 덮어쓰지 않고 중단하며, `classifier.pt`는 변경하지 않습니다. 기존 파일을 삭제하거나 보호 장치를 제거하기 전에 경로와 보존 필요성을 확인하세요.
+> **아래 코드는 CUDA GPU로 새 모델을 학습하고 파일을 생성합니다.**
+>
+> - **배치·실행:** `/home/ubuntu/llm-lab/source/train_classifier_augmented.py`에 배치한 뒤 `python train_classifier_augmented.py`로 실행합니다.
+> - **저장 경로:** `__file__`의 상위 두 단계에 있는 `classifier_augmented.pt`입니다. 예시 배치에서는 `/home/ubuntu/llm-lab/classifier_augmented.pt`가 생성됩니다.
+> - **중첩 경로 주의:** 저장소의 중첩된 `source/03-inference-and-data/`에서 직접 실행하면 저장 경로가 달라집니다.
+> - **기존 파일 보호:** 같은 모델이 있으면 덮어쓰지 않고 중단하며, `classifier.pt`는 변경하지 않습니다. 기존 파일을 삭제하거나 보호 장치를 제거하기 전에 경로와 보존 필요성을 확인하세요.
 
 ```python
 from pathlib import Path
